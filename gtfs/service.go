@@ -43,6 +43,70 @@ func (s Service) GetExceptionTypeOn(d Date) int8 {
 	return 0
 }
 
+func (a Service) getGtfsDateFromTime(t time.Time) Date {
+	return Date{int8(t.Day()), int8(t.Month()), int16(t.Year())}
+}
+
+func (a Service) getNextDate(d Date) Date {
+	return a.getGtfsDateFromTime((d.GetTime().AddDate(0, 0, 1)))
+}
+
+func (a Service) Equals(b Service) bool {
+	startA := a.GetFirstDefinedDate()
+	endA := a.GetLastDefinedDate()
+
+	startB := a.GetFirstDefinedDate()
+	endB := b.GetLastDefinedDate()
+
+	if startA.GetTime().After(startB.GetTime()) {
+		startA = startB
+	}
+
+	if endA.GetTime().Before(endB.GetTime()) {
+		endA = endB
+	}
+
+	for d := startA; !d.GetTime().After(endA.GetTime()); d = a.getNextDate(d) {
+		if a.IsActiveOn(d) != b.IsActiveOn(d) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (service Service) GetFirstDefinedDate() Date {
+	var first Date
+
+	for _, d := range service.Exceptions {
+		if first.Year == 0 || d.Date.GetTime().Before(first.GetTime()) {
+			first = d.Date
+		}
+	}
+
+	if first.Year == 0 || (service.Start_date.Year > 0 && service.Start_date.GetTime().Before(first.GetTime())) {
+		first = service.Start_date
+	}
+
+	return first
+}
+
+func (service Service) GetLastDefinedDate() Date {
+	var last Date
+
+	for _, d := range service.Exceptions {
+		if last.Year == 0 || d.Date.GetTime().After(last.GetTime()) {
+			last = d.Date
+		}
+	}
+
+	if last.Year == 0 || (service.End_date.Year > 0 && service.End_date.GetTime().After(last.GetTime())) {
+		last = service.End_date
+	}
+
+	return last
+}
+
 func (d Date) GetTime() time.Time {
 	return time.Date(int(d.Year), time.Month(d.Month), int(d.Day), 12, 0, 0, 0, time.UTC)
 }
