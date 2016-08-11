@@ -24,6 +24,7 @@ func createAgency(r map[string]string) *gtfs.Agency {
 	a.Lang = getString("agency_lang", r, false)
 	a.Phone = getString("agency_phone", r, false)
 	a.Fare_url = getString("agency_fare_url", r, false)
+	a.Email = getString("agency_email", r, false)
 
 	return a
 }

@@ -14,4 +14,5 @@ type Agency struct {
 	Lang     string
 	Phone    string
 	Fare_url string
+	Email    string
 }
