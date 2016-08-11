@@ -50,8 +50,23 @@ func (p *CsvParser) ParseRecord() map[string]string {
 
 func (p *CsvParser) ParseCsvLine() []string {
 	record, err := p.reader.Read()
-
 	p.Curline++
+
+	// handle byte order marks
+	if len(record) > 0 {
+		// utf 8
+		if len(record[0]) > 2 && record[0][0] == 239 && record[0][1] == 187 && record[0][2] == 191 {
+			record[0] = record[0][3:]
+
+			// utf 16 BE
+		} else if len(record[0]) > 1 && record[0][0] == 254 && record[0][1] == 255 {
+			record[0] = record[0][2:]
+
+			// utf 16 LE
+		} else if len(record[0]) > 1 && record[0][0] == 255 && record[0][1] == 254 {
+			record[0] = record[0][2:]
+		}
+	}
 
 	if err == io.EOF {
 		return nil
