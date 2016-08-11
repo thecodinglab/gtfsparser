@@ -16,7 +16,7 @@ type Stop struct {
 	Zone_id             string
 	Url                 string
 	Location_type       int
-	Parent_station      string
+	Parent_station      string  // TODO: use pointer to Stop here!
 	Timezone            string
 	Wheelchair_boarding int
 }

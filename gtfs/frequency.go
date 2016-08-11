@@ -7,8 +7,8 @@
 package gtfs
 
 type Frequency struct {
-	Start_time   string
-	End_time     string
+	Start_time   Time
+	End_time     Time
 	Headway_secs int
 	Exact_times  bool
 }

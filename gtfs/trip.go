@@ -12,11 +12,11 @@ type Trip struct {
 	Service               *Service
 	Headsign              string
 	Short_name            string
-	Direction_id          int
+	Direction_id          int8
 	Block_id              string
-	Shape             	  *Shape
-	Wheelchair_accessible int
-	Bikes_allowed         int
+	Shape                 *Shape
+	Wheelchair_accessible int8
+	Bikes_allowed         int8
 	StopTimes             StopTimes
-	Frequencies           []*Frequency
+	Frequencies           []Frequency
 }

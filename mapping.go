@@ -7,10 +7,11 @@
 package gtfsparser
 
 import (
-	"fmt"
-	"github.com/geops/gtfsparser/gtfs"
-	"strconv"
+	hex "encoding/hex"
 	"errors"
+	"fmt"
+	"github.com/patrickbr/gtfsparser/gtfs"
+	"strconv"
 	"strings"
 )
 
@@ -43,7 +44,7 @@ func createFeedInfo(r map[string]string) *gtfs.FeedInfo {
 }
 
 func createFrequency(r map[string]string, trips map[string]*gtfs.Trip) {
-	a := new(gtfs.Frequency)
+	a := gtfs.Frequency{}
 	var trip *gtfs.Trip
 
 	tripid := getString("trip_id", r, true)
@@ -54,10 +55,10 @@ func createFrequency(r map[string]string, trips map[string]*gtfs.Trip) {
 		panic(errors.New("No trip with id " + r["trip_id"] + " found."))
 	}
 
-	a.Exact_times = getBool("exact_times", r, false)
-	a.Start_time = getString("start_time", r, true)
-	a.End_time = getString("end_time", r, true)
-	a.Headway_secs = getPositiveInt("headway_secs", r, false)
+	a.Exact_times = getBool("exact_times", r, false, false)
+	a.Start_time = getTime("start_time", r, true)
+	a.End_time = getTime("end_time", r, true)
+	a.Headway_secs = getPositiveInt("headway_secs", r, true)
 	trip.Frequencies = append(trip.Frequencies, a)
 }
 
@@ -80,8 +81,8 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency) *gtfs.Ro
 	a.Desc = getString("route_desc", r, false)
 	a.Type = getRangeInt("route_type", r, true, 0, 7)
 	a.Url = getString("route_url", r, false)
-	a.Color = getString("route_color", r, false)
-	a.Text_color = getString("route_text_color", r, false)
+	a.Color = getColor("route_color", r, false, "ffffff")
+	a.Text_color = getColor("route_text_color", r, false, "000000")
 
 	return a
 }
@@ -91,13 +92,13 @@ func createServiceFromCalendar(r map[string]string, services map[string]*gtfs.Se
 	service.Id = getString("service_id", r, true)
 
 	// fill daybitmap
-	service.Daymap[1] = getBool("monday", r, true)
-	service.Daymap[2] = getBool("tuesday", r, true)
-	service.Daymap[3] = getBool("wednesday", r, true)
-	service.Daymap[4] = getBool("thursday", r, true)
-	service.Daymap[5] = getBool("friday", r, true)
-	service.Daymap[6] = getBool("saturday", r, true)
-	service.Daymap[0] = getBool("sunday", r, true)
+	service.Daymap[1] = getBool("monday", r, true, false)
+	service.Daymap[2] = getBool("tuesday", r, true, false)
+	service.Daymap[3] = getBool("wednesday", r, true, false)
+	service.Daymap[4] = getBool("thursday", r, true, false)
+	service.Daymap[5] = getBool("friday", r, true, false)
+	service.Daymap[6] = getBool("saturday", r, true, false)
+	service.Daymap[0] = getBool("sunday", r, true, false)
 	service.Start_date = getDate("start_date", r, true)
 	service.End_date = getDate("end_date", r, true)
 
@@ -153,7 +154,7 @@ func createStop(r map[string]string) *gtfs.Stop {
 }
 
 func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[string]*gtfs.Trip) {
-	a := new(gtfs.StopTime)
+	a := gtfs.StopTime{}
 	var trip *gtfs.Trip
 
 	if val, ok := trips[getString("trip_id", r, true)]; ok {
@@ -168,14 +169,14 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 		panic(errors.New("No stop with id " + getString("stop_id", r, true) + " found."))
 	}
 
-	a.Arrival_time = getString("arrival_time", r, true)
-	a.Departure_time = getString("departure_time", r, true)
+	a.Arrival_time = getTime("arrival_time", r, true)
+	a.Departure_time = getTime("departure_time", r, true)
 	a.Sequence = getPositiveInt("stop_sequence", r, true)
 	a.Headsign = getString("stop_headsign", r, false)
-	a.Pickup_type = getRangeInt("pickup_type", r, false, 0, 3)
-	a.Drop_off_type = getRangeInt("drop_off_type", r, false, 0, 3)
+	a.Pickup_type = int8(getRangeInt("pickup_type", r, false, 0, 3))
+	a.Drop_off_type = int8(getRangeInt("drop_off_type", r, false, 0, 3))
 	a.Shape_dist_traveled = getFloat("shape_dist_traveled", r, false)
-	a.Timepoint = getBool("Timepoint", r, false)
+	a.Timepoint = getBool("Timepoint", r, false, true)
 
 	trip.StopTimes = append(trip.StopTimes, a)
 
@@ -201,7 +202,7 @@ func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 
 	a.Headsign = getString("trip_headsign", r, false)
 	a.Short_name = getString("trip_short_name", r, false)
-	a.Direction_id = getRangeInt("direction_id", r, false, 0, 1)
+	a.Direction_id = int8(getRangeInt("direction_id", r, false, 0, 1))
 	a.Block_id = getString("block_id", r, false)
 
 	shapeId := getString("shape_id", r, false)
@@ -214,8 +215,8 @@ func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 		}
 	}
 
-	a.Wheelchair_accessible = getRangeIntWithDefault("wheelchair_accessible", r, 0, 2, 0)
-	a.Bikes_allowed = getRangeIntWithDefault("bikes_allowed", r, 0, 2, 0)
+	a.Wheelchair_accessible = int8(getRangeIntWithDefault("wheelchair_accessible", r, 0, 2, 0))
+	a.Bikes_allowed = int8(getRangeIntWithDefault("bikes_allowed", r, 0, 2, 0))
 
 	return a
 }
@@ -304,12 +305,12 @@ func createTransfer(r map[string]string, stops map[string]*gtfs.Stop) *gtfs.Tran
 		panic(errors.New("No stop with id " + getString("to_stop_id", r, true) + " found."))
 	}
 
-
 	a.Transfer_type = getRangeInt("transfer_type", r, true, 0, 3)
-	a.Min_transfer_time = getPositiveInt("min_transfer_time", r, false)
+	a.Min_transfer_time = getPositiveIntWithDefault("min_transfer_time", r, -1)
 
 	return a
 }
+
 func getString(name string, r map[string]string, req bool) string {
 	if val, ok := r[name]; ok {
 		return val
@@ -317,6 +318,22 @@ func getString(name string, r map[string]string, req bool) string {
 		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
 	}
 	return ""
+}
+
+func getColor(name string, r map[string]string, req bool, def string) string {
+	if val, ok := r[name]; ok && len(val) > 0 {
+		if len(val) != 6 {
+			panic(errors.New(fmt.Sprintf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", name, val)))
+		}
+
+		if _, e := hex.DecodeString(val); e != nil {
+			panic(errors.New(fmt.Sprintf("Expected hexadecimal number as color for field '%s' (found: %s)", name, val)))
+		}
+		return strings.ToUpper(val)
+	} else if req {
+		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+	}
+	return strings.ToUpper(def)
 }
 
 func getInt(name string, r map[string]string, req bool) int {
@@ -345,6 +362,17 @@ func getPositiveInt(name string, r map[string]string, req bool) int {
 	return 0
 }
 
+func getPositiveIntWithDefault(name string, r map[string]string, def int) int {
+	if val, ok := r[name]; ok && len(val) > 0 {
+		num, err := strconv.Atoi(val)
+		if err != nil || num < 0 {
+			panic(errors.New(fmt.Sprintf("Expected positive integer for field '%s', found '%s'", name, val)))
+		}
+		return num
+	}
+	return def
+}
+
 func getRangeInt(name string, r map[string]string, req bool, min int, max int) int {
 	if val, ok := r[name]; ok && len(val) > 0 {
 		num, err := strconv.Atoi(val)
@@ -352,7 +380,7 @@ func getRangeInt(name string, r map[string]string, req bool, min int, max int) i
 			panic(errors.New(fmt.Sprintf("Expected integer for field '%s', found '%s'", name, val)))
 		}
 
-		if (num > max || num < min) {
+		if num > max || num < min {
 			panic(errors.New(fmt.Sprintf("Expected integer between %d and %d for field '%s', found %s", min, max, name, val)))
 		}
 
@@ -370,7 +398,7 @@ func getRangeIntWithDefault(name string, r map[string]string, min int, max int, 
 			panic(errors.New(fmt.Sprintf("Expected integer for field '%s', found '%s'", name, val)))
 		}
 
-		if (num > max || num < min) {
+		if num > max || num < min {
 			panic(errors.New(fmt.Sprintf("Expected integer between %d and %d for field '%s', found %s", min, max, name, val)))
 		}
 
@@ -389,10 +417,10 @@ func getFloat(name string, r map[string]string, req bool) float32 {
 	} else if req {
 		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
 	}
-	return 0
+	return -1
 }
 
-func getBool(name string, r map[string]string, req bool) bool {
+func getBool(name string, r map[string]string, req bool, def bool) bool {
 	if val, ok := r[name]; ok && len(val) > 0 {
 		num, err := strconv.Atoi(val)
 		if err != nil || (num != 0 && num != 1) {
@@ -402,7 +430,7 @@ func getBool(name string, r map[string]string, req bool) bool {
 	} else if req {
 		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
 	}
-	return false
+	return def
 }
 
 func getDate(name string, r map[string]string, req bool) gtfs.Date {
@@ -435,5 +463,41 @@ func getDate(name string, r map[string]string, req bool) gtfs.Date {
 		panic(errors.New(fmt.Sprintf("Expected YYYYMMDD date for field '%s', found '%s' (%s)", name, str, e.Error())))
 	} else {
 		return gtfs.Date{int8(day), int8(month), int16(year)}
+	}
+}
+
+func getTime(name string, r map[string]string, req bool) gtfs.Time {
+	var str string
+	var ok bool
+	if str, ok = r[name]; !ok {
+		if req {
+			panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		} else {
+			return gtfs.Time{0, 0, 0}
+		}
+	}
+
+	var hour, minute, second int
+	parts := strings.Split(str, ":")
+	var e error
+
+	if len(parts) != 3 || len(parts[0]) == 0 || len(parts[1]) != 2 || len(parts[2]) != 2 {
+		e = errors.New(fmt.Sprintf("expected to be in HH:MM:SS format", len(str)))
+	}
+
+	if e == nil {
+		hour, e = strconv.Atoi(parts[0])
+	}
+	if e == nil {
+		minute, e = strconv.Atoi(parts[1])
+	}
+	if e == nil {
+		second, e = strconv.Atoi(parts[2])
+	}
+
+	if e != nil {
+		panic(errors.New(fmt.Sprintf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", name, str, e.Error())))
+	} else {
+		return gtfs.Time{hour, int8(minute), int8(second)}
 	}
 }
