@@ -187,11 +187,25 @@ func (feed *Feed) parseStops(path string) (err error) {
 	}()
 
 	var record map[string]string
+	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
 		var stop *gtfs.Stop
 		stop = createStop(record)
+		if v, in := record["parent_station"]; in && len(v) > 0 {
+			parentStopIds[stop.Id] = v
+		}
 		feed.Stops[stop.Id] = stop
 	}
+
+	// write the parent stop ids
+	for id, pid := range parentStopIds {
+		pstop, ok := feed.Stops[pid]
+		if !ok {
+			panic(errors.New("No station with id " + pid + " found, cannot use as parent station here."))
+		}
+		feed.Stops[id].Parent_station = pstop
+	}
+
 	return e
 }
 
