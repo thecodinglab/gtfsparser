@@ -7,8 +7,8 @@
 package gtfs
 
 type Transfer struct {
-	From_stop            *Stop
-	To_stop              *Stop
-	Transfer_type       int
-	Min_transfer_time   int
+	From_stop         *Stop
+	To_stop           *Stop
+	Transfer_type     int
+	Min_transfer_time int
 }
