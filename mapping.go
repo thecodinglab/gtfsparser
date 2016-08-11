@@ -234,7 +234,7 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape) {
 		shapes[shapeId] = shape
 	}
 
-	shape.Points = append(shape.Points, &gtfs.ShapePoint{
+	shape.Points = append(shape.Points, gtfs.ShapePoint{
 		Lat:           getFloat("shape_pt_lat", r, true),
 		Lon:           getFloat("shape_pt_lon", r, true),
 		Sequence:      getInt("shape_pt_sequence", r, true),

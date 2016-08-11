@@ -23,12 +23,12 @@ type ShapePoint struct {
 }
 
 // Get a string representation of a ShapePoint
-func (shape ShapePoint) String() string {
+func (shape *ShapePoint) String() string {
 	return strconv.FormatFloat(float64(shape.Lat), 'f', 8, 32) + "," + strconv.FormatFloat(float64(shape.Lon), 'f', 8, 32)
 }
 
 // Get a string representation of this shape
-func (shape Shape) String() string {
+func (shape *Shape) String() string {
 	ret := ""
 	first := true
 	for _, point := range shape.Points {
@@ -42,7 +42,7 @@ func (shape Shape) String() string {
 	return ret
 }
 
-type ShapePoints []*ShapePoint
+type ShapePoints []ShapePoint
 
 func (shapePoints ShapePoints) Len() int {
 	return len(shapePoints)
@@ -54,4 +54,8 @@ func (shapePoints ShapePoints) Less(i, j int) bool {
 
 func (shapePoints ShapePoints) Swap(i, j int) {
 	shapePoints[i], shapePoints[j] = shapePoints[j], shapePoints[i]
+}
+
+func (p *ShapePoint) HasDistanceTravelled() bool {
+	return p.Dist_traveled > -.5
 }
