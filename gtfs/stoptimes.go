@@ -16,6 +16,7 @@ type StopTime struct {
 	Drop_off_type       int8
 	Shape_dist_traveled float32
 	Timepoint           bool
+	Has_dist            bool
 }
 
 type Time struct {
@@ -44,4 +45,8 @@ func (a Time) Equals(b Time) bool {
 
 func (a Time) SecondsSinceMidnight() int {
 	return int(a.Hour)*3600 + int(a.Minute)*60 + int(a.Second)
+}
+
+func (s StopTime) HasDistanceTraveled() bool {
+	return s.Has_dist
 }

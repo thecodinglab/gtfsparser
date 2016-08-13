@@ -20,6 +20,7 @@ type ShapePoint struct {
 	Lon           float32
 	Sequence      int
 	Dist_traveled float32
+	Has_dist      bool
 }
 
 // Get a string representation of a ShapePoint
@@ -56,6 +57,6 @@ func (shapePoints ShapePoints) Swap(i, j int) {
 	shapePoints[i], shapePoints[j] = shapePoints[j], shapePoints[i]
 }
 
-func (p *ShapePoint) HasDistanceTravelled() bool {
-	return p.Dist_traveled > -.5
+func (p *ShapePoint) HasDistanceTraveled() bool {
+	return p.Has_dist
 }
