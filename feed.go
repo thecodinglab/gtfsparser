@@ -9,12 +9,19 @@ package gtfsparser
 import (
 	"archive/zip"
 	"errors"
+	"fmt"
 	"github.com/patrickbr/gtfsparser/gtfs"
 	"io"
+	"math"
 	"os"
 	opath "path"
 	"sort"
 )
+
+type ParseOptions struct {
+	UseDefValueOnError bool
+	DropErroneous      bool
+}
 
 type Feed struct {
 	Agencies       map[string]*gtfs.Agency
@@ -29,6 +36,8 @@ type Feed struct {
 
 	zipFileCloser *zip.ReadCloser
 	curFileHandle *os.File
+
+	opts ParseOptions
 }
 
 // Create a new, empty feed
@@ -43,8 +52,13 @@ func NewFeed() *Feed {
 		Shapes:         make(map[string]*gtfs.Shape),
 		Transfers:      make([]*gtfs.Transfer, 0),
 		FeedInfos:      make([]*gtfs.FeedInfo, 0),
+		opts:           ParseOptions{false, false},
 	}
 	return &g
+}
+
+func (feed *Feed) SetParseOpts(opts ParseOptions) {
+	feed.opts = opts
 }
 
 // Parse the GTFS data in the specified folder into the feed
@@ -92,11 +106,19 @@ func (feed *Feed) Parse(path string) error {
 	// sort stoptimes in trips
 	for _, trip := range feed.Trips {
 		sort.Sort(trip.StopTimes)
+		e = feed.checkStopTimeMeasure(trip, &feed.opts)
+		if e != nil {
+			return e
+		}
 	}
 
 	// sort points in shapes
 	for _, shape := range feed.Shapes {
 		sort.Sort(shape.Points)
+		e = feed.checkShapeMeasure(shape, &feed.opts)
+		if e != nil {
+			return e
+		}
 	}
 
 	// close open readers
@@ -163,8 +185,14 @@ func (feed *Feed) parseAgencies(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		var agency *gtfs.Agency
-		agency = createAgency(record)
+		agency, e := createAgency(record)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 		feed.Agencies[agency.Id] = agency
 	}
 
@@ -189,8 +217,14 @@ func (feed *Feed) parseStops(path string) (err error) {
 	var record map[string]string
 	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		var stop *gtfs.Stop
-		stop = createStop(record)
+		stop, e := createStop(record, &feed.opts)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 		if v, in := record["parent_station"]; in && len(v) > 0 {
 			parentStopIds[stop.Id] = v
 		}
@@ -201,7 +235,15 @@ func (feed *Feed) parseStops(path string) (err error) {
 	for id, pid := range parentStopIds {
 		pstop, ok := feed.Stops[pid]
 		if !ok {
-			panic(errors.New("No station with id " + pid + " found, cannot use as parent station here."))
+			if feed.opts.UseDefValueOnError {
+				// continue, the default value "nil" has already be written above
+				continue
+			} else if feed.opts.DropErroneous {
+				// delete the erroneous entry
+				delete(feed.Stops, id)
+			} else {
+				panic(errors.New("No station with id " + pid + " found, cannot use as parent station here."))
+			}
 		}
 		feed.Stops[id].Parent_station = pstop
 	}
@@ -226,8 +268,14 @@ func (feed *Feed) parseRoutes(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		var route *gtfs.Route
-		route = createRoute(record, feed.Agencies)
+		route, e := createRoute(record, feed.Agencies, &feed.opts)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 		feed.Routes[route.Id] = route
 	}
 	return e
@@ -250,8 +298,15 @@ func (feed *Feed) parseCalendar(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		var service *gtfs.Service
-		service = createServiceFromCalendar(record, feed.Services)
+		service, e := createServiceFromCalendar(record, feed.Services, &feed.opts)
+
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 
 		// if service was parsed in-place, nil was returned
 		if service != nil {
@@ -279,8 +334,15 @@ func (feed *Feed) parseCalendarDates(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		var service *gtfs.Service
-		service = createServiceFromCalendarDates(record, feed.Services)
+		service, e := createServiceFromCalendarDates(record, feed.Services)
+
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 
 		// if service was parsed in-place, nil was returned
 		if service != nil {
@@ -308,8 +370,14 @@ func (feed *Feed) parseTrips(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		var trip *gtfs.Trip
-		trip = createTrip(record, feed.Routes, feed.Services, feed.Shapes)
+		trip, e := createTrip(record, feed.Routes, feed.Services, feed.Shapes, &feed.opts)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 		feed.Trips[trip.Id] = trip
 	}
 
@@ -333,7 +401,14 @@ func (feed *Feed) parseShapes(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		createShapePoint(record, feed.Shapes)
+		e := createShapePoint(record, feed.Shapes, &feed.opts)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 	}
 
 	return e
@@ -355,7 +430,15 @@ func (feed *Feed) parseStopTimes(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		createStopTime(record, feed.Stops, feed.Trips)
+		e := createStopTime(record, feed.Stops, feed.Trips, &feed.opts)
+
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 	}
 
 	return e
@@ -377,7 +460,14 @@ func (feed *Feed) parseFrequencies(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		createFrequency(record, feed.Trips)
+		e := createFrequency(record, feed.Trips, &feed.opts)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 	}
 
 	return e
@@ -399,8 +489,14 @@ func (feed *Feed) parseFareAttributes(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		var fa *gtfs.FareAttribute
-		fa = createFareAttribute(record)
+		fa, e := createFareAttribute(record, &feed.opts)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 		feed.FareAttributes[fa.Id] = fa
 	}
 
@@ -423,7 +519,14 @@ func (feed *Feed) parseFareAttributeRules(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		createFareRule(record, feed.FareAttributes, feed.Routes)
+		e := createFareRule(record, feed.FareAttributes, feed.Routes)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
 	}
 
 	return e
@@ -445,7 +548,15 @@ func (feed *Feed) parseTransfers(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		feed.Transfers = append(feed.Transfers, createTransfer(record, feed.Stops))
+		t, e := createTransfer(record, feed.Stops, &feed.opts)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
+		feed.Transfers = append(feed.Transfers, t)
 	}
 
 	return e
@@ -467,8 +578,62 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		feed.FeedInfos = append(feed.FeedInfos, createFeedInfo(record))
+		fi, e := createFeedInfo(record, &feed.opts)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
+		feed.FeedInfos = append(feed.FeedInfos, fi)
 	}
 
 	return e
+}
+
+func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error {
+	max := float32(math.Inf(-1))
+	deleted := 0
+	for j := 1; j < len(shape.Points); j++ {
+		i := j - deleted
+		if shape.Points[i-1].HasDistanceTraveled() {
+			max = shape.Points[i-1].Dist_traveled
+		}
+		if shape.Points[i].HasDistanceTraveled() && max > shape.Points[i].Dist_traveled {
+			if opt.UseDefValueOnError {
+				shape.Points[i].Dist_traveled = 0
+				shape.Points[i].Has_dist = false
+			} else if opt.DropErroneous {
+				shape.Points = shape.Points[:i+copy(shape.Points[i:], shape.Points[i+1:])]
+				deleted++
+			} else {
+				return (errors.New(fmt.Sprintf("In shape '%s' for point  with seq=%s shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)))
+			}
+		}
+	}
+	return nil
+}
+
+func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error {
+	max := float32(math.Inf(-1))
+	deleted := 0
+	for j := 1; j < len(trip.StopTimes); j++ {
+		i := j - deleted
+		if trip.StopTimes[i-1].HasDistanceTraveled() {
+			max = trip.StopTimes[i-1].Shape_dist_traveled
+		}
+		if trip.StopTimes[i].HasDistanceTraveled() && max > trip.StopTimes[i].Shape_dist_traveled {
+			if opt.UseDefValueOnError {
+				trip.StopTimes[i].Shape_dist_traveled = 0
+				trip.StopTimes[i].Has_dist = false
+			} else if opt.DropErroneous {
+				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
+				deleted++
+			} else {
+				return (errors.New(fmt.Sprintf("In trip '%s' for stoptime with seq=%s shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)))
+			}
+		}
+	}
+	return nil
 }
