@@ -103,21 +103,25 @@ func (feed *Feed) Parse(path string) error {
 		e = feed.parseTransfers(path)
 	}
 
-	// sort stoptimes in trips
-	for _, trip := range feed.Trips {
-		sort.Sort(trip.StopTimes)
-		e = feed.checkStopTimeMeasure(trip, &feed.opts)
-		if e != nil {
-			return e
+	if e == nil {
+		// sort stoptimes in trips
+		for _, trip := range feed.Trips {
+			sort.Sort(trip.StopTimes)
+			e = feed.checkStopTimeMeasure(trip, &feed.opts)
+			if e != nil {
+				break
+			}
 		}
 	}
-
-	// sort points in shapes
-	for _, shape := range feed.Shapes {
-		sort.Sort(shape.Points)
-		e = feed.checkShapeMeasure(shape, &feed.opts)
-		if e != nil {
-			return e
+	
+	if e == nil {
+		// sort points in shapes
+		for _, shape := range feed.Shapes {
+			sort.Sort(shape.Points)
+			e = feed.checkShapeMeasure(shape, &feed.opts)
+			if e != nil {
+				break
+			}
 		}
 	}
 
