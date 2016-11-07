@@ -105,7 +105,7 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 	a.Short_name = getString("route_short_name", r, true)
 	a.Long_name = getString("route_long_name", r, true)
 	a.Desc = getString("route_desc", r, false)
-	a.Type = getRangeInt("route_type", r, true, 0, 7)
+	a.Type = getRangeInt("route_type", r, true, 0, 1702) // allow extended route types
 	a.Url = getString("route_url", r, false)
 	a.Color = getColor("route_color", r, false, "ffffff", opts.UseDefValueOnError)
 	a.Text_color = getColor("route_text_color", r, false, "000000", opts.UseDefValueOnError)
