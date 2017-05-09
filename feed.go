@@ -113,7 +113,7 @@ func (feed *Feed) Parse(path string) error {
 			}
 		}
 	}
-	
+
 	if e == nil {
 		// sort points in shapes
 		for _, shape := range feed.Shapes {
@@ -246,7 +246,7 @@ func (feed *Feed) parseStops(path string) (err error) {
 				// delete the erroneous entry
 				delete(feed.Stops, id)
 			} else {
-				panic(errors.New("No station with id " + pid + " found, cannot use as parent station here."))
+				panic(errors.New("(for stop id " + id + ") No station with id " + pid + " found, cannot use as parent station here."))
 			}
 		}
 		feed.Stops[id].Parent_station = pstop

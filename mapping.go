@@ -582,7 +582,7 @@ func getBool(name string, r map[string]string, req bool, def bool, ignErrs bool)
 func getDate(name string, r map[string]string, req bool, ignErrs bool) gtfs.Date {
 	var str string
 	var ok bool
-	if str, ok = r[name]; !ok {
+	if str, ok = r[name]; !ok || len(str) == 0 {
 		if req {
 			panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
 		} else {
@@ -605,7 +605,7 @@ func getDate(name string, r map[string]string, req bool, ignErrs bool) gtfs.Date
 		year, e = strconv.Atoi(str[0:4])
 	}
 
-	if e != nil && req && !ignErrs {
+	if e != nil && !ignErrs {
 		panic(errors.New(fmt.Sprintf("Expected YYYYMMDD date for field '%s', found '%s' (%s)", name, str, e.Error())))
 	} else {
 		return gtfs.Date{int8(day), int8(month), int16(year)}
