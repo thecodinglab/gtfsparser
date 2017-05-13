@@ -12,7 +12,7 @@ type Route struct {
 	Short_name string
 	Long_name  string
 	Desc       string
-	Type       int
+	Type       int16
 	Url        string
 	Color      string
 	Text_color string

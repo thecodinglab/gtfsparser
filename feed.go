@@ -21,6 +21,7 @@ import (
 type ParseOptions struct {
 	UseDefValueOnError bool
 	DropErroneous      bool
+	DryRun             bool
 }
 
 type Feed struct {
@@ -52,7 +53,7 @@ func NewFeed() *Feed {
 		Shapes:         make(map[string]*gtfs.Shape),
 		Transfers:      make([]*gtfs.Transfer, 0),
 		FeedInfos:      make([]*gtfs.FeedInfo, 0),
-		opts:           ParseOptions{false, false},
+		opts:           ParseOptions{false, false, false},
 	}
 	return &g
 }
@@ -280,7 +281,11 @@ func (feed *Feed) parseRoutes(path string) (err error) {
 				panic(e)
 			}
 		}
-		feed.Routes[route.Id] = route
+		if feed.opts.DryRun {
+			feed.Routes[route.Id] = nil
+		} else {
+			feed.Routes[route.Id] = route
+		}
 	}
 	return e
 }
@@ -560,7 +565,9 @@ func (feed *Feed) parseTransfers(path string) (err error) {
 				panic(e)
 			}
 		}
-		feed.Transfers = append(feed.Transfers, t)
+		if !feed.opts.DryRun {
+			feed.Transfers = append(feed.Transfers, t)
+		}
 	}
 
 	return e
@@ -590,7 +597,9 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 				panic(e)
 			}
 		}
-		feed.FeedInfos = append(feed.FeedInfos, fi)
+		if !feed.opts.DryRun {
+			feed.FeedInfos = append(feed.FeedInfos, fi)
+		}
 	}
 
 	return e

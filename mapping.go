@@ -74,7 +74,10 @@ func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, opts *Par
 	a.Start_time = getTime("start_time", r)
 	a.End_time = getTime("end_time", r)
 	a.Headway_secs = getPositiveInt("headway_secs", r, true)
-	trip.Frequencies = append(trip.Frequencies, a)
+
+	if !opts.DryRun {
+		trip.Frequencies = append(trip.Frequencies, a)
+	}
 
 	return nil
 }
@@ -105,7 +108,7 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 	a.Short_name = getString("route_short_name", r, true)
 	a.Long_name = getString("route_long_name", r, true)
 	a.Desc = getString("route_desc", r, false)
-	a.Type = getRangeInt("route_type", r, true, 0, 1702) // allow extended route types
+	a.Type = int16(getRangeInt("route_type", r, true, 0, 1702)) // allow extended route types
 	a.Url = getString("route_url", r, false)
 	a.Color = getColor("route_color", r, false, "ffffff", opts.UseDefValueOnError)
 	a.Text_color = getColor("route_text_color", r, false, "000000", opts.UseDefValueOnError)
@@ -187,10 +190,10 @@ func createStop(r map[string]string, opts *ParseOptions) (s *gtfs.Stop, err erro
 	a.Lon = getFloat("stop_lon", r, true)
 	a.Zone_id = getString("zone_id", r, false)
 	a.Url = getString("stop_url", r, false)
-	a.Location_type = getRangeIntWithDefault("location_type", r, 0, 1, 0, opts.UseDefValueOnError)
+	a.Location_type = getBool("location_type", r, false, false, opts.UseDefValueOnError)
 	a.Parent_station = nil
 	a.Timezone = getString("stop_timezone", r, false)
-	a.Wheelchair_boarding = getRangeIntWithDefault("wheelchair_boarding", r, 0, 2, 0, opts.UseDefValueOnError)
+	a.Wheelchair_boarding = int8(getRangeIntWithDefault("wheelchair_boarding", r, 0, 2, 0, opts.UseDefValueOnError))
 
 	return a, nil
 }
@@ -228,7 +231,9 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	a.Timepoint = getBool("Timepoint", r, false, true, opts.UseDefValueOnError)
 
 	if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
-		trip.StopTimes = append(trip.StopTimes, a)
+		if !opts.DryRun {
+			trip.StopTimes = append(trip.StopTimes, a)
+		}
 	} else if !opts.DropErroneous {
 		panic(errors.New("Stop time sequence collision. Sequence has to increase along trip."))
 	}

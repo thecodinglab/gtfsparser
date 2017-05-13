@@ -15,8 +15,8 @@ type Stop struct {
 	Lon                 float32
 	Zone_id             string
 	Url                 string
-	Location_type       int
+	Location_type       bool
 	Parent_station      *Stop
 	Timezone            string
-	Wheelchair_boarding int
+	Wheelchair_boarding int8
 }
