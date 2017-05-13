@@ -165,7 +165,10 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 	exc.Type = int8(t)
 	exc.Date = getDate("date", r, true, false)
 
-	service.Exceptions = append(service.Exceptions, exc)
+	// may be nil during dry run
+	if service != nil {
+		service.Exceptions = append(service.Exceptions, exc)
+	}
 
 	if update {
 		return nil, nil
@@ -219,6 +222,10 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 		panic(errors.New("No stop with id " + getString("stop_id", r, true) + " found."))
 	}
 
+	if a.Stop.Location_type {
+		panic(errors.New("Stop " + a.Stop.Id + " (" + a.Stop.Name + ") has location_type=1, cannot be used in stop_times.txt!"))
+	}
+
 	a.Arrival_time = getTime("arrival_time", r)
 	a.Departure_time = getTime("departure_time", r)
 	a.Sequence = getPositiveInt("stop_sequence", r, true)
@@ -228,7 +235,7 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	dist, nulled := getNullableFloat("shape_dist_traveled", r, opts.UseDefValueOnError)
 	a.Shape_dist_traveled = dist
 	a.Has_dist = !nulled
-	a.Timepoint = getBool("Timepoint", r, false, true, opts.UseDefValueOnError)
+	a.Timepoint = getBool("timepoint", r, false, true, opts.UseDefValueOnError)
 
 	if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
 		if !opts.DryRun {
@@ -425,6 +432,7 @@ func getString(name string, r map[string]string, req bool) string {
 
 func getColor(name string, r map[string]string, req bool, def string, ignErrs bool) string {
 	if val, ok := r[name]; ok && len(val) > 0 {
+		val = strings.TrimSpace(val)
 		if len(val) != 6 {
 			if ignErrs {
 				return def
