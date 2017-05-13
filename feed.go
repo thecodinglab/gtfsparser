@@ -76,6 +76,25 @@ func (feed *Feed) Parse(path string) error {
 	if e == nil {
 		e = feed.parseShapes(path)
 	}
+
+	if e == nil {
+		// sort points in shapes
+		for _, shape := range feed.Shapes {
+			sort.Sort(shape.Points)
+			e = feed.checkShapeMeasure(shape, &feed.opts)
+			if e != nil {
+				break
+			}
+		}
+		if feed.opts.DryRun {
+			// clear space
+			for id, _ := range feed.Shapes {
+				feed.Shapes[id] = nil
+			}
+
+		}
+	}
+
 	if e == nil {
 		e = feed.parseRoutes(path)
 	}
@@ -109,17 +128,6 @@ func (feed *Feed) Parse(path string) error {
 		for _, trip := range feed.Trips {
 			sort.Sort(trip.StopTimes)
 			e = feed.checkStopTimeMeasure(trip, &feed.opts)
-			if e != nil {
-				break
-			}
-		}
-	}
-
-	if e == nil {
-		// sort points in shapes
-		for _, shape := range feed.Shapes {
-			sort.Sort(shape.Points)
-			e = feed.checkShapeMeasure(shape, &feed.opts)
 			if e != nil {
 				break
 			}
@@ -319,7 +327,11 @@ func (feed *Feed) parseCalendar(path string) (err error) {
 
 		// if service was parsed in-place, nil was returned
 		if service != nil {
-			feed.Services[service.Id] = service
+			if feed.opts.DryRun {
+				feed.Services[service.Id] = nil
+			} else {
+				feed.Services[service.Id] = service
+			}
 		}
 	}
 
@@ -355,7 +367,11 @@ func (feed *Feed) parseCalendarDates(path string) (err error) {
 
 		// if service was parsed in-place, nil was returned
 		if service != nil {
-			feed.Services[service.Id] = service
+			if feed.opts.DryRun {
+				feed.Services[service.Id] = nil
+			} else {
+				feed.Services[service.Id] = service
+			}
 		}
 	}
 
