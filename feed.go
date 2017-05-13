@@ -91,7 +91,6 @@ func (feed *Feed) Parse(path string) error {
 			for id, _ := range feed.Shapes {
 				feed.Shapes[id] = nil
 			}
-
 		}
 	}
 
@@ -110,6 +109,22 @@ func (feed *Feed) Parse(path string) error {
 	if e == nil {
 		e = feed.parseStopTimes(path)
 	}
+
+	if e == nil {
+		// sort stoptimes in trips
+		for _, trip := range feed.Trips {
+			sort.Sort(trip.StopTimes)
+			e = feed.checkStopTimeMeasure(trip, &feed.opts)
+			if e != nil {
+				break
+			}
+
+			if feed.opts.DryRun {
+				feed.Trips[trip.Id] = nil
+			}
+		}
+	}
+
 	if e == nil {
 		e = feed.parseFareAttributes(path)
 	}
@@ -121,17 +136,6 @@ func (feed *Feed) Parse(path string) error {
 	}
 	if e == nil {
 		e = feed.parseTransfers(path)
-	}
-
-	if e == nil {
-		// sort stoptimes in trips
-		for _, trip := range feed.Trips {
-			sort.Sort(trip.StopTimes)
-			e = feed.checkStopTimeMeasure(trip, &feed.opts)
-			if e != nil {
-				break
-			}
-		}
 	}
 
 	// close open readers
@@ -649,6 +653,16 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 	deleted := 0
 	for j := 1; j < len(trip.StopTimes); j++ {
 		i := j - deleted
+
+		if trip.StopTimes[i-1].Departure_time.SecondsSinceMidnight() > trip.StopTimes[i].Arrival_time.SecondsSinceMidnight() {
+			if opt.DropErroneous {
+				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
+				deleted++
+			} else {
+				return (errors.New(fmt.Sprintf("In trip '%s' for stoptime with seq=%d the arrival time is before the departure in the previous station.", trip.Id, trip.StopTimes[i].Sequence)))
+			}
+		}
+
 		if trip.StopTimes[i-1].HasDistanceTraveled() {
 			max = trip.StopTimes[i-1].Shape_dist_traveled
 		}
@@ -660,7 +674,7 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
 				deleted++
 			} else {
-				return (errors.New(fmt.Sprintf("In trip '%s' for stoptime with seq=%s shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)))
+				return (errors.New(fmt.Sprintf("In trip '%s' for stoptime with seq=%d shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)))
 			}
 		}
 	}

@@ -20,7 +20,7 @@ type StopTime struct {
 }
 
 type Time struct {
-	Hour   int
+	Hour   int8
 	Minute int8
 	Second int8
 }

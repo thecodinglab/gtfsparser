@@ -228,6 +228,11 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 
 	a.Arrival_time = getTime("arrival_time", r)
 	a.Departure_time = getTime("departure_time", r)
+
+	if a.Arrival_time.SecondsSinceMidnight() > a.Departure_time.SecondsSinceMidnight() {
+		panic(errors.New("Departure before arrival at stop " + getString("stop_id", r, true) + "."))
+	}
+
 	a.Sequence = getPositiveInt("stop_sequence", r, true)
 	a.Headsign = getString("stop_headsign", r, false)
 	a.Pickup_type = int8(getRangeInt("pickup_type", r, false, 0, 3))
@@ -238,9 +243,7 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	a.Timepoint = getBool("timepoint", r, false, true, opts.UseDefValueOnError)
 
 	if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
-		if !opts.DryRun {
-			trip.StopTimes = append(trip.StopTimes, a)
-		}
+		trip.StopTimes = append(trip.StopTimes, a)
 	} else if !opts.DropErroneous {
 		panic(errors.New("Stop time sequence collision. Sequence has to increase along trip."))
 	}
@@ -653,7 +656,7 @@ func getTime(name string, r map[string]string) gtfs.Time {
 	if e != nil {
 		panic(errors.New(fmt.Sprintf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", name, str, e.Error())))
 	} else {
-		return gtfs.Time{hour, int8(minute), int8(second)}
+		return gtfs.Time{int8(hour), int8(minute), int8(second)}
 	}
 }
 
