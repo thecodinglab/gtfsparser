@@ -202,7 +202,7 @@ func (feed *Feed) parseAgencies(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		agency, e := createAgency(record)
+		agency, e := createAgency(record, &feed.opts)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -641,7 +641,7 @@ func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error 
 				shape.Points = shape.Points[:i+copy(shape.Points[i:], shape.Points[i+1:])]
 				deleted++
 			} else {
-				return (errors.New(fmt.Sprintf("In shape '%s' for point  with seq=%s shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)))
+				return (errors.New(fmt.Sprintf("In shape '%s' for point with seq=%d shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)))
 			}
 		}
 	}
@@ -654,7 +654,7 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 	for j := 1; j < len(trip.StopTimes); j++ {
 		i := j - deleted
 
-		if trip.StopTimes[i-1].Departure_time.SecondsSinceMidnight() > trip.StopTimes[i].Arrival_time.SecondsSinceMidnight() {
+		if !trip.StopTimes[i-1].Departure_time.Empty() && !trip.StopTimes[i].Arrival_time.Empty() && trip.StopTimes[i-1].Departure_time.SecondsSinceMidnight() > trip.StopTimes[i].Arrival_time.SecondsSinceMidnight() {
 			if opt.DropErroneous {
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
 				deleted++
@@ -666,6 +666,7 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 		if trip.StopTimes[i-1].HasDistanceTraveled() {
 			max = trip.StopTimes[i-1].Shape_dist_traveled
 		}
+
 		if trip.StopTimes[i].HasDistanceTraveled() && max > trip.StopTimes[i].Shape_dist_traveled {
 			if opt.UseDefValueOnError {
 				trip.StopTimes[i].Shape_dist_traveled = 0

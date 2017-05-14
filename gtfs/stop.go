@@ -6,6 +6,10 @@
 
 package gtfs
 
+import (
+	url "net/url"
+)
+
 type Stop struct {
 	Id                  string
 	Code                string
@@ -14,9 +18,9 @@ type Stop struct {
 	Lat                 float32
 	Lon                 float32
 	Zone_id             string
-	Url                 string
+	Url                 *url.URL
 	Location_type       bool
 	Parent_station      *Stop
-	Timezone            string
+	Timezone            Timezone
 	Wheelchair_boarding int8
 }

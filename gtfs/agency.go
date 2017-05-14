@@ -6,13 +6,18 @@
 
 package gtfs
 
+import (
+	mail "net/mail"
+	url "net/url"
+)
+
 type Agency struct {
 	Id       string
 	Name     string
-	Url      string
-	Timezone string
-	Lang     string
+	Url      *url.URL
+	Timezone Timezone
+	Lang     LanguageISO6391
 	Phone    string
-	Fare_url string
-	Email    string
+	Fare_url *url.URL
+	Email    *mail.Address
 }

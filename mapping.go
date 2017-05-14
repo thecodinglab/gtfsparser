@@ -11,11 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/patrickbr/gtfsparser/gtfs"
+	mail "net/mail"
+	url "net/url"
 	"strconv"
 	"strings"
 )
 
-func createAgency(r map[string]string) (ag *gtfs.Agency, err error) {
+func createAgency(r map[string]string, opts *ParseOptions) (ag *gtfs.Agency, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -25,12 +27,12 @@ func createAgency(r map[string]string) (ag *gtfs.Agency, err error) {
 
 	a.Id = getString("agency_id", r, false)
 	a.Name = getString("agency_name", r, true)
-	a.Url = getString("agency_url", r, true)
-	a.Timezone = getString("agency_timezone", r, true)
-	a.Lang = getString("agency_lang", r, false)
+	a.Url = getUrl("agency_url", r, true, opts.UseDefValueOnError)
+	a.Timezone = getTimezone("agency_timezone", r, true, opts.UseDefValueOnError)
+	a.Lang = getIsoLangCode("agency_lang", r, false, opts.UseDefValueOnError)
 	a.Phone = getString("agency_phone", r, false)
-	a.Fare_url = getString("agency_fare_url", r, false)
-	a.Email = getString("agency_email", r, false)
+	a.Fare_url = getUrl("agency_fare_url", r, false, opts.UseDefValueOnError)
+	a.Email = getMail("agency_email", r, false, opts.UseDefValueOnError)
 
 	return a, nil
 }
@@ -44,7 +46,7 @@ func createFeedInfo(r map[string]string, opts *ParseOptions) (fi *gtfs.FeedInfo,
 	f := new(gtfs.FeedInfo)
 
 	f.Publisher_name = getString("feed_publisher_name", r, true)
-	f.Publisher_url = getString("feed_publisher_url", r, true)
+	f.Publisher_url = getUrl("feed_publisher_url", r, true, opts.UseDefValueOnError)
 	f.Lang = getString("feed_lang", r, true)
 	f.Start_date = getDate("feed_start_date", r, false, opts.UseDefValueOnError)
 	f.End_date = getDate("feed_end_date", r, false, opts.UseDefValueOnError)
@@ -109,7 +111,7 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 	a.Long_name = getString("route_long_name", r, true)
 	a.Desc = getString("route_desc", r, false)
 	a.Type = int16(getRangeInt("route_type", r, true, 0, 1702)) // allow extended route types
-	a.Url = getString("route_url", r, false)
+	a.Url = getUrl("route_url", r, false, opts.UseDefValueOnError)
 	a.Color = getColor("route_color", r, false, "ffffff", opts.UseDefValueOnError)
 	a.Text_color = getColor("route_text_color", r, false, "000000", opts.UseDefValueOnError)
 
@@ -192,10 +194,10 @@ func createStop(r map[string]string, opts *ParseOptions) (s *gtfs.Stop, err erro
 	a.Lat = getFloat("stop_lat", r, true)
 	a.Lon = getFloat("stop_lon", r, true)
 	a.Zone_id = getString("zone_id", r, false)
-	a.Url = getString("stop_url", r, false)
+	a.Url = getUrl("stop_url", r, false, opts.UseDefValueOnError)
 	a.Location_type = getBool("location_type", r, false, false, opts.UseDefValueOnError)
 	a.Parent_station = nil
-	a.Timezone = getString("stop_timezone", r, false)
+	a.Timezone = getTimezone("stop_timezone", r, false, opts.UseDefValueOnError)
 	a.Wheelchair_boarding = int8(getRangeIntWithDefault("wheelchair_boarding", r, 0, 2, 0, opts.UseDefValueOnError))
 
 	return a, nil
@@ -229,6 +231,22 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	a.Arrival_time = getTime("arrival_time", r)
 	a.Departure_time = getTime("departure_time", r)
 
+	if a.Arrival_time.Empty() && !a.Departure_time.Empty() {
+		if opts.UseDefValueOnError {
+			a.Arrival_time = a.Departure_time
+		} else {
+			panic(errors.New("Missing arrival time for " + getString("stop_id", r, true) + "."))
+		}
+	}
+
+	if !a.Arrival_time.Empty() && a.Departure_time.Empty() {
+		if opts.UseDefValueOnError {
+			a.Departure_time = a.Arrival_time
+		} else {
+			panic(errors.New("Missing departure time for " + getString("stop_id", r, true) + "."))
+		}
+	}
+
 	if a.Arrival_time.SecondsSinceMidnight() > a.Departure_time.SecondsSinceMidnight() {
 		panic(errors.New("Departure before arrival at stop " + getString("stop_id", r, true) + "."))
 	}
@@ -240,7 +258,15 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	dist, nulled := getNullableFloat("shape_dist_traveled", r, opts.UseDefValueOnError)
 	a.Shape_dist_traveled = dist
 	a.Has_dist = !nulled
-	a.Timepoint = getBool("timepoint", r, false, true, opts.UseDefValueOnError)
+	a.Timepoint = getBool("timepoint", r, false, !a.Arrival_time.Empty() && !a.Departure_time.Empty(), opts.UseDefValueOnError)
+
+	if (a.Arrival_time.Empty() || a.Departure_time.Empty()) && a.Timepoint {
+		if opts.UseDefValueOnError {
+			a.Timepoint = false
+		} else if !opts.DropErroneous {
+			panic(errors.New("Stops with timepoint=1 cannot have empty arrival or departure time"))
+		}
+	}
 
 	if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
 		trip.StopTimes = append(trip.StopTimes, a)
@@ -431,6 +457,68 @@ func getString(name string, r map[string]string, req bool) string {
 		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
 	}
 	return ""
+}
+
+func getUrl(name string, r map[string]string, req bool, ignErrs bool) *url.URL {
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		u, e := url.ParseRequestURI(strings.TrimSpace(val))
+		if e != nil && (req || !ignErrs) {
+			panic(errors.New(fmt.Sprintf("'%s' is not a valid url", val)))
+		} else if e != nil {
+			return nil
+		}
+		return u
+	} else if req {
+		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+	}
+	return nil
+}
+
+func getMail(name string, r map[string]string, req bool, ignErrs bool) *mail.Address {
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		u, e := mail.ParseAddress(strings.TrimSpace(val))
+		if e != nil && (req || !ignErrs) {
+			panic(errors.New(fmt.Sprintf("'%s' is not a valid email address", val)))
+		} else if e != nil {
+			return nil
+		}
+		return u
+	} else if req {
+		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+	}
+	return nil
+}
+
+func getTimezone(name string, r map[string]string, req bool, ignErrs bool) gtfs.Timezone {
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		tz, e := gtfs.NewTimezone(strings.TrimSpace(val))
+		if e != nil && (req || !ignErrs) {
+			panic(e)
+		} else if e != nil {
+			return tz
+		}
+		return tz
+	} else if req {
+		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+	}
+	tz, _ := gtfs.NewTimezone("")
+	return tz
+}
+
+func getIsoLangCode(name string, r map[string]string, req bool, ignErrs bool) gtfs.LanguageISO6391 {
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		l, e := gtfs.NewLanguageISO6391(strings.TrimSpace(val))
+		if e != nil && (req || !ignErrs) {
+			panic(e)
+		} else if e != nil {
+			return l
+		}
+		return l
+	} else if req {
+		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+	}
+	l, _ := gtfs.NewLanguageISO6391("")
+	return l
 }
 
 func getColor(name string, r map[string]string, req bool, def string, ignErrs bool) string {
@@ -633,6 +721,12 @@ func getTime(name string, r map[string]string) gtfs.Time {
 	var ok bool
 	if str, ok = r[name]; !ok {
 		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+	}
+
+	str = strings.TrimSpace(str)
+
+	if len(str) == 0 {
+		return gtfs.Time{int8(-1), int8(-1), int8(-1)}
 	}
 
 	var hour, minute, second int

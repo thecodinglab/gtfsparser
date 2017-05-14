@@ -6,6 +6,10 @@
 
 package gtfs
 
+import (
+	url "net/url"
+)
+
 type Route struct {
 	Id         string
 	Agency     *Agency
@@ -13,7 +17,7 @@ type Route struct {
 	Long_name  string
 	Desc       string
 	Type       int16
-	Url        string
+	Url        *url.URL
 	Color      string
 	Text_color string
 }
