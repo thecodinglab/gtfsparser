@@ -39,6 +39,10 @@ func (stopTimes StopTimes) Swap(i, j int) {
 	stopTimes[i], stopTimes[j] = stopTimes[j], stopTimes[i]
 }
 
+func (a Time) Empty() bool {
+	return a.Hour == -1 && a.Minute == -1 && a.Second == -1
+}
+
 func (a Time) Equals(b Time) bool {
 	return a.Hour == b.Hour && a.Minute == b.Minute && a.Second == b.Second
 }
