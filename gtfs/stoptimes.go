@@ -6,6 +6,10 @@
 
 package gtfs
 
+import (
+	"time"
+)
+
 type StopTime struct {
 	Arrival_time        Time
 	Departure_time      Time
@@ -26,6 +30,10 @@ type Time struct {
 }
 
 type StopTimes []StopTime
+
+func (a Time) Minus(b Time) int {
+	return a.SecondsSinceMidnight() - b.SecondsSinceMidnight()
+}
 
 func (stopTimes StopTimes) Len() int {
 	return len(stopTimes)
@@ -49,6 +57,15 @@ func (a Time) Equals(b Time) bool {
 
 func (a Time) SecondsSinceMidnight() int {
 	return int(a.Hour)*3600 + int(a.Minute)*60 + int(a.Second)
+}
+
+func (a Time) GetLocationTime(d Date, agency *Agency) time.Time {
+	loc := agency.Timezone.GetLocation()
+	if loc == nil {
+		panic("Don't know timezone " + agency.Timezone.GetTzString())
+	}
+
+	return time.Date(int(d.Year), time.Month(d.Month), int(d.Day), int(a.Hour), int(a.Minute), int(a.Second), 0, loc)
 }
 
 func (s StopTime) HasDistanceTraveled() bool {
