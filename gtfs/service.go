@@ -43,12 +43,12 @@ func (s Service) GetExceptionTypeOn(d Date) int8 {
 	return 0
 }
 
-func (a Service) getGtfsDateFromTime(t time.Time) Date {
+func GetGtfsDateFromTime(t time.Time) Date {
 	return Date{int8(t.Day()), int8(t.Month()), int16(t.Year())}
 }
 
-func (a Service) getNextDate(d Date) Date {
-	return a.getGtfsDateFromTime((d.GetTime().AddDate(0, 0, 1)))
+func (d Date) GetOffsettedDate(offset int) Date {
+	return GetGtfsDateFromTime((d.GetTime().AddDate(0, 0, offset)))
 }
 
 func (a Service) Equals(b Service) bool {
@@ -66,7 +66,7 @@ func (a Service) Equals(b Service) bool {
 		endA = endB
 	}
 
-	for d := startA; !d.GetTime().After(endA.GetTime()); d = a.getNextDate(d) {
+	for d := startA; !d.GetTime().After(endA.GetTime()); d = d.GetOffsettedDate(1) {
 		if a.IsActiveOn(d) != b.IsActiveOn(d) {
 			return false
 		}
