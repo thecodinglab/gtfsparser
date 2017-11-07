@@ -203,6 +203,11 @@ func (feed *Feed) parseAgencies(path string) (err error) {
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
 		agency, e := createAgency(record, &feed.opts)
+		if e == nil {
+			if _, ok := feed.Agencies[agency.Id]; ok {
+				e = errors.New("ID collision, agency_id '" + agency.Id + "' already used.")
+			}
+		}
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -235,6 +240,11 @@ func (feed *Feed) parseStops(path string) (err error) {
 	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
 		stop, e := createStop(record, &feed.opts)
+		if e == nil {
+			if _, ok := feed.Stops[stop.Id]; ok {
+				e = errors.New("ID collision, stop_id '" + stop.Id + "' already used.")
+			}
+		}
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -286,6 +296,11 @@ func (feed *Feed) parseRoutes(path string) (err error) {
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
 		route, e := createRoute(record, feed.Agencies, &feed.opts)
+		if e == nil {
+			if _, ok := feed.Routes[route.Id]; ok {
+				e = errors.New("ID collision, route_id '" + route.Id + "' already used.")
+			}
+		}
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -400,6 +415,11 @@ func (feed *Feed) parseTrips(path string) (err error) {
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
 		trip, e := createTrip(record, feed.Routes, feed.Services, feed.Shapes, &feed.opts)
+		if e == nil {
+			if _, ok := feed.Trips[trip.Id]; ok {
+				e = errors.New("ID collision, trip_id '" + trip.Id + "' already used.")
+			}
+		}
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue

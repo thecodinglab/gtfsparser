@@ -127,6 +127,7 @@ func createServiceFromCalendar(r map[string]string, services map[string]*gtfs.Se
 
 	service := new(gtfs.Service)
 	service.Id = getString("service_id", r, true)
+	service.Exceptions = make(map[gtfs.Date]int8, 0)
 
 	// fill daybitmap
 	service.Daymap[1] = getBool("monday", r, true, false, opts.UseDefValueOnError)
@@ -158,18 +159,19 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 	} else {
 		service = new(gtfs.Service)
 		service.Id = getString("service_id", r, true)
+		service.Exceptions = make(map[gtfs.Date]int8, 0)
 	}
 
 	// create exception
-	exc := new(gtfs.ServiceException)
-	var t int
-	t = getRangeInt("exception_type", r, true, 1, 2)
-	exc.Type = int8(t)
-	exc.Date = getDate("date", r, true, false)
+	t := getRangeInt("exception_type", r, true, 1, 2)
+	date := getDate("date", r, true, false)
 
 	// may be nil during dry run
 	if service != nil {
-		service.Exceptions = append(service.Exceptions, exc)
+		if _, ok := service.Exceptions[date]; ok {
+			return nil, errors.New("Date exception for service id " + getString("service_id", r, true) + " defined 2 times for one date.")
+		}
+		service.Exceptions[date] = int8(t)
 	}
 
 	if update {
