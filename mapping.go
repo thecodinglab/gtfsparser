@@ -454,7 +454,7 @@ func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, opts *Pars
 
 func getString(name string, r map[string]string, req bool) string {
 	if val, ok := r[name]; ok {
-		return val
+		return strings.TrimSpace(val)
 	} else if req {
 		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
 	}
