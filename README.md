@@ -1,3 +1,5 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/patrickbr/gtfsparser)](https://goreportcard.com/report/github.com/patrickbr/gtfsparser) [![Build Status](https://travis-ci.org/patrickbr/gtfsparser.svg?branch=master)](https://travis-ci.org/patrickbr/gtfsparser)
+
 # go gtfsparser
 
 A complete*, easy to use parsing library for GTFS data. Implemented in go. Accepts folders containing GTFS files and ZIPs. Feeds are validated during parsing. ID references are transformed into pointer references where appropriate.
