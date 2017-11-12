@@ -75,7 +75,7 @@ func (a *Service) Equals(b *Service) bool {
 func (service *Service) GetFirstDefinedDate() Date {
 	var first Date
 
-	for date, _ := range service.Exceptions {
+	for date := range service.Exceptions {
 		if first.Year == 0 || date.GetTime().Before(first.GetTime()) {
 			first = date
 		}
@@ -91,7 +91,7 @@ func (service *Service) GetFirstDefinedDate() Date {
 func (service *Service) GetLastDefinedDate() Date {
 	var last Date
 
-	for date, _ := range service.Exceptions {
+	for date := range service.Exceptions {
 		if last.Year == 0 || date.GetTime().After(last.GetTime()) {
 			last = date
 		}

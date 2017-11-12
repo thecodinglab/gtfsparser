@@ -11,25 +11,28 @@ import (
 	"io"
 )
 
+// CsvParser is a wrapper around csv.Reader
 type CsvParser struct {
 	header  []string
 	reader  *csv.Reader
 	Curline int
 }
 
+// NewCsvParser creates a new CsvParser
 func NewCsvParser(file io.Reader) CsvParser {
 	reader := csv.NewReader(file)
 	reader.TrimLeadingSpace = true
 	reader.LazyQuotes = true
 	reader.FieldsPerRecord = -1
 	p := CsvParser{reader: reader}
-	p.ParseHeader()
+	p.parseHeader()
 
 	return p
 }
 
+// ParseRecord reads a single line into a map
 func (p *CsvParser) ParseRecord() map[string]string {
-	l := p.ParseCsvLine()
+	l := p.parseCsvLine()
 
 	if l == nil {
 		return nil
@@ -48,7 +51,7 @@ func (p *CsvParser) ParseRecord() map[string]string {
 	return record
 }
 
-func (p *CsvParser) ParseCsvLine() []string {
+func (p *CsvParser) parseCsvLine() []string {
 	record, err := p.reader.Read()
 	p.Curline++
 
@@ -76,6 +79,6 @@ func (p *CsvParser) ParseCsvLine() []string {
 	return record
 }
 
-func (p *CsvParser) ParseHeader() {
-	p.header = p.ParseCsvLine()
+func (p *CsvParser) parseHeader() {
+	p.header = p.parseCsvLine()
 }

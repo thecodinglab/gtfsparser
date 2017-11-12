@@ -10,6 +10,7 @@ import (
 	"fmt"
 )
 
+// A ParseError indicates an error during parsing
 type ParseError struct {
 	filename string
 	line     int

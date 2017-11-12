@@ -18,12 +18,14 @@ import (
 	"sort"
 )
 
+// A ParseOptions object holds options for parsing a the feed
 type ParseOptions struct {
 	UseDefValueOnError bool
 	DropErroneous      bool
 	DryRun             bool
 }
 
+// Feed represents a single GTFS feed
 type Feed struct {
 	Agencies       map[string]*gtfs.Agency
 	Stops          map[string]*gtfs.Stop
@@ -41,7 +43,7 @@ type Feed struct {
 	opts ParseOptions
 }
 
-// Create a new, empty feed
+// NewFeed creates a new, empty feed
 func NewFeed() *Feed {
 	g := Feed{
 		Agencies:       make(map[string]*gtfs.Agency),
@@ -58,6 +60,7 @@ func NewFeed() *Feed {
 	return &g
 }
 
+// SetParseOpts sets the ParseOptions for this feed
 func (feed *Feed) SetParseOpts(opts ParseOptions) {
 	feed.opts = opts
 }
@@ -88,7 +91,7 @@ func (feed *Feed) Parse(path string) error {
 		}
 		if feed.opts.DryRun {
 			// clear space
-			for id, _ := range feed.Shapes {
+			for id := range feed.Shapes {
 				feed.Shapes[id] = nil
 			}
 		}
@@ -164,25 +167,25 @@ func (feed *Feed) getFile(path string, name string) (io.Reader, error) {
 		}
 
 		return os.Open(opath.Join(path, name))
-	} else {
-		var e error
-		if feed.zipFileCloser == nil {
-			// reuse existing opened zip file
-			feed.zipFileCloser, e = zip.OpenReader(path)
-		}
+	}
 
-		if e != nil {
-			return nil, e
-		}
+	var e error
+	if feed.zipFileCloser == nil {
+		// reuse existing opened zip file
+		feed.zipFileCloser, e = zip.OpenReader(path)
+	}
 
-		for _, f := range feed.zipFileCloser.File {
-			if f.Name == name {
-				return f.Open()
-			}
+	if e != nil {
+		return nil, e
+	}
+
+	for _, f := range feed.zipFileCloser.File {
+		if f.Name == name {
+			return f.Open()
 		}
 	}
 
-	return nil, errors.New("Not found.")
+	return nil, errors.New("Not found")
 }
 
 func (feed *Feed) parseAgencies(path string) (err error) {
@@ -661,7 +664,7 @@ func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error 
 				shape.Points = shape.Points[:i+copy(shape.Points[i:], shape.Points[i+1:])]
 				deleted++
 			} else {
-				return (errors.New(fmt.Sprintf("In shape '%s' for point with seq=%d shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)))
+				return fmt.Errorf("In shape '%s' for point with seq=%d shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)
 			}
 		}
 	}
@@ -679,7 +682,7 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
 				deleted++
 			} else {
-				return (errors.New(fmt.Sprintf("In trip '%s' for stoptime with seq=%d the arrival time is before the departure in the previous station.", trip.Id, trip.StopTimes[i].Sequence)))
+				return fmt.Errorf("In trip '%s' for stoptime with seq=%d the arrival time is before the departure in the previous station", trip.Id, trip.StopTimes[i].Sequence)
 			}
 		}
 
@@ -695,7 +698,7 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
 				deleted++
 			} else {
-				return (errors.New(fmt.Sprintf("In trip '%s' for stoptime with seq=%d shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)))
+				return fmt.Errorf("In trip '%s' for stoptime with seq=%d shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)
 			}
 		}
 	}

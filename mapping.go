@@ -27,11 +27,11 @@ func createAgency(r map[string]string, opts *ParseOptions) (ag *gtfs.Agency, err
 
 	a.Id = getString("agency_id", r, false)
 	a.Name = getString("agency_name", r, true)
-	a.Url = getUrl("agency_url", r, true, opts.UseDefValueOnError)
+	a.Url = getURL("agency_url", r, true, opts.UseDefValueOnError)
 	a.Timezone = getTimezone("agency_timezone", r, true, opts.UseDefValueOnError)
 	a.Lang = getIsoLangCode("agency_lang", r, false, opts.UseDefValueOnError)
 	a.Phone = getString("agency_phone", r, false)
-	a.Fare_url = getUrl("agency_fare_url", r, false, opts.UseDefValueOnError)
+	a.Fare_url = getURL("agency_fare_url", r, false, opts.UseDefValueOnError)
 	a.Email = getMail("agency_email", r, false, opts.UseDefValueOnError)
 
 	return a, nil
@@ -46,7 +46,7 @@ func createFeedInfo(r map[string]string, opts *ParseOptions) (fi *gtfs.FeedInfo,
 	f := new(gtfs.FeedInfo)
 
 	f.Publisher_name = getString("feed_publisher_name", r, true)
-	f.Publisher_url = getUrl("feed_publisher_url", r, true, opts.UseDefValueOnError)
+	f.Publisher_url = getURL("feed_publisher_url", r, true, opts.UseDefValueOnError)
 	f.Lang = getString("feed_lang", r, true)
 	f.Start_date = getDate("feed_start_date", r, false, opts.UseDefValueOnError)
 	f.End_date = getDate("feed_end_date", r, false, opts.UseDefValueOnError)
@@ -93,16 +93,16 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 	a := new(gtfs.Route)
 	a.Id = getString("route_id", r, true)
 
-	var aId = getString("agency_id", r, false)
+	var aID = getString("agency_id", r, false)
 
-	if len(aId) != 0 {
-		if val, ok := agencies[aId]; ok {
+	if len(aID) != 0 {
+		if val, ok := agencies[aID]; ok {
 			a.Agency = val
 		} else {
 			if opts.UseDefValueOnError {
 				a.Agency = nil
 			} else {
-				return nil, errors.New("No agency with id " + aId + " found.")
+				return nil, errors.New("No agency with id " + aID + " found.")
 			}
 		}
 	}
@@ -111,7 +111,7 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 	a.Long_name = getString("route_long_name", r, true)
 	a.Desc = getString("route_desc", r, false)
 	a.Type = int16(getRangeInt("route_type", r, true, 0, 1702)) // allow extended route types
-	a.Url = getUrl("route_url", r, false, opts.UseDefValueOnError)
+	a.Url = getURL("route_url", r, false, opts.UseDefValueOnError)
 	a.Color = getColor("route_color", r, false, "ffffff", opts.UseDefValueOnError)
 	a.Text_color = getColor("route_text_color", r, false, "000000", opts.UseDefValueOnError)
 
@@ -176,9 +176,8 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 
 	if update {
 		return nil, nil
-	} else {
-		return service, nil
 	}
+	return service, nil
 }
 
 func createStop(r map[string]string, opts *ParseOptions) (s *gtfs.Stop, err error) {
@@ -196,7 +195,7 @@ func createStop(r map[string]string, opts *ParseOptions) (s *gtfs.Stop, err erro
 	a.Lat = getFloat("stop_lat", r, true)
 	a.Lon = getFloat("stop_lon", r, true)
 	a.Zone_id = getString("zone_id", r, false)
-	a.Url = getUrl("stop_url", r, false, opts.UseDefValueOnError)
+	a.Url = getURL("stop_url", r, false, opts.UseDefValueOnError)
 	a.Location_type = getBool("location_type", r, false, false, opts.UseDefValueOnError)
 	a.Parent_station = nil
 	a.Timezone = getTimezone("stop_timezone", r, false, opts.UseDefValueOnError)
@@ -273,7 +272,7 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
 		trip.StopTimes = append(trip.StopTimes, a)
 	} else if !opts.DropErroneous {
-		panic(errors.New("Stop time sequence collision. Sequence has to increase along trip."))
+		panic(errors.New("Stop time sequence collision. Sequence has to increase along trip"))
 	}
 
 	return nil
@@ -293,13 +292,13 @@ func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 	if val, ok := routes[getString("route_id", r, true)]; ok {
 		a.Route = val
 	} else {
-		panic(errors.New(fmt.Sprintf("No route with id %s found", getString("route_id", r, true))))
+		panic(fmt.Errorf("No route with id %s found", getString("route_id", r, true)))
 	}
 
 	if val, ok := services[getString("service_id", r, true)]; ok {
 		a.Service = val
 	} else {
-		panic(errors.New(fmt.Sprintf("No service with id %s found", getString("service_id", r, true))))
+		panic(fmt.Errorf("No service with id %s found", getString("service_id", r, true)))
 	}
 
 	a.Headsign = getString("trip_headsign", r, false)
@@ -307,16 +306,16 @@ func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 	a.Direction_id = int8(getRangeInt("direction_id", r, false, 0, 1))
 	a.Block_id = getString("block_id", r, false)
 
-	shapeId := getString("shape_id", r, false)
+	shapeID := getString("shape_id", r, false)
 
-	if len(shapeId) > 0 {
-		if val, ok := shapes[shapeId]; ok {
+	if len(shapeID) > 0 {
+		if val, ok := shapes[shapeID]; ok {
 			a.Shape = val
 		} else {
 			if opts.UseDefValueOnError {
 				a.Shape = nil
 			} else {
-				return nil, errors.New(fmt.Sprintf("No shape with id %s found", shapeId))
+				return nil, fmt.Errorf("No shape with id %s found", shapeID)
 			}
 		}
 	}
@@ -334,17 +333,17 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, opts *
 		}
 	}()
 
-	shapeId := getString("shape_id", r, true)
+	shapeID := getString("shape_id", r, true)
 	var shape *gtfs.Shape
 
-	if val, ok := shapes[shapeId]; ok {
+	if val, ok := shapes[shapeID]; ok {
 		shape = val
 	} else {
 		// create new shape
 		shape = new(gtfs.Shape)
-		shape.Id = shapeId
+		shape.Id = shapeID
 		// push it onto the shape map
-		shapes[shapeId] = shape
+		shapes[shapeID] = shape
 	}
 	dist, nulled := getNullableFloat("shape_dist_traveled", r, opts.UseDefValueOnError)
 	p := gtfs.ShapePoint{
@@ -358,7 +357,7 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, opts *
 	if checkShapePointOrdering(p.Sequence, shape.Points) {
 		shape.Points = append(shape.Points, p)
 	} else if !opts.DropErroneous {
-		panic(errors.New("Shape point sequence collision. Sequence has to increase along shape."))
+		panic(errors.New("Shape point sequence collision. Sequence has to increase along shape"))
 	}
 
 	return nil
@@ -399,20 +398,19 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 	if val, ok := fareattributes[fareid]; ok {
 		fareattr = val
 	} else {
-		panic(errors.New(fmt.Sprintf("No fare attribute with id %s found", fareid)))
+		panic(fmt.Errorf("No fare attribute with id %s found", fareid))
 	}
 
 	// create fare attribute
 	rule := new(gtfs.FareAttributeRule)
 
-	var route_id string
-	route_id = getString("route_id", r, false)
+	routeID := getString("route_id", r, false)
 
-	if len(route_id) > 0 {
-		if val, ok := routes[route_id]; ok {
+	if len(routeID) > 0 {
+		if val, ok := routes[routeID]; ok {
 			rule.Route = val
 		} else {
-			panic(errors.New(fmt.Sprintf("No route with id %s found", route_id)))
+			panic(fmt.Errorf("No route with id %s found", routeID))
 		}
 	}
 
@@ -456,22 +454,22 @@ func getString(name string, r map[string]string, req bool) string {
 	if val, ok := r[name]; ok {
 		return strings.TrimSpace(val)
 	} else if req {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	return ""
 }
 
-func getUrl(name string, r map[string]string, req bool, ignErrs bool) *url.URL {
+func getURL(name string, r map[string]string, req bool, ignErrs bool) *url.URL {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		u, e := url.ParseRequestURI(strings.TrimSpace(val))
 		if e != nil && (req || !ignErrs) {
-			panic(errors.New(fmt.Sprintf("'%s' is not a valid url", val)))
+			panic(fmt.Errorf("'%s' is not a valid url", val))
 		} else if e != nil {
 			return nil
 		}
 		return u
 	} else if req {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	return nil
 }
@@ -480,13 +478,13 @@ func getMail(name string, r map[string]string, req bool, ignErrs bool) *mail.Add
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		u, e := mail.ParseAddress(strings.TrimSpace(val))
 		if e != nil && (req || !ignErrs) {
-			panic(errors.New(fmt.Sprintf("'%s' is not a valid email address", val)))
+			panic(fmt.Errorf("'%s' is not a valid email address", val))
 		} else if e != nil {
 			return nil
 		}
 		return u
 	} else if req {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	return nil
 }
@@ -501,7 +499,7 @@ func getTimezone(name string, r map[string]string, req bool, ignErrs bool) gtfs.
 		}
 		return tz
 	} else if req {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	tz, _ := gtfs.NewTimezone("")
 	return tz
@@ -517,7 +515,7 @@ func getIsoLangCode(name string, r map[string]string, req bool, ignErrs bool) gt
 		}
 		return l
 	} else if req {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	l, _ := gtfs.NewLanguageISO6391("")
 	return l
@@ -529,25 +527,22 @@ func getColor(name string, r map[string]string, req bool, def string, ignErrs bo
 		if len(val) != 6 {
 			if ignErrs {
 				return def
-			} else {
-				panic(errors.New(fmt.Sprintf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", name, val)))
 			}
+			panic(fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", name, val))
 		}
 
 		if _, e := hex.DecodeString(val); e != nil {
 			if ignErrs {
 				return def
-			} else {
-				panic(errors.New(fmt.Sprintf("Expected hexadecimal number as color for field '%s' (found: %s)", name, val)))
 			}
+			panic(fmt.Errorf("Expected hexadecimal number as color for field '%s' (found: %s)", name, val))
 		}
 		return strings.ToUpper(val)
 	} else if req {
 		if ignErrs {
 			return def
-		} else {
-			panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
 		}
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	return strings.ToUpper(def)
 }
@@ -556,11 +551,11 @@ func getInt(name string, r map[string]string, req bool) int {
 	if val, ok := r[name]; ok && len(val) > 0 {
 		num, err := strconv.Atoi(val)
 		if err != nil {
-			panic(errors.New(fmt.Sprintf("Expected integer for field '%s', found '%s'", name, val)))
+			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, val))
 		}
 		return num
 	} else if req {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	return 0
 }
@@ -569,11 +564,11 @@ func getPositiveInt(name string, r map[string]string, req bool) int {
 	if val, ok := r[name]; ok && len(val) > 0 {
 		num, err := strconv.Atoi(val)
 		if err != nil || num < 0 {
-			panic(errors.New(fmt.Sprintf("Expected positive integer for field '%s', found '%s'", name, val)))
+			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", name, val))
 		}
 		return num
 	} else if req {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	return 0
 }
@@ -584,9 +579,8 @@ func getPositiveIntWithDefault(name string, r map[string]string, def int, ignErr
 		if err != nil || num < 0 {
 			if ignErrs {
 				return def
-			} else {
-				panic(errors.New(fmt.Sprintf("Expected positive integer for field '%s', found '%s'", name, val)))
 			}
+			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", name, val))
 		}
 		return num
 	}
@@ -597,16 +591,16 @@ func getRangeInt(name string, r map[string]string, req bool, min int, max int) i
 	if val, ok := r[name]; ok && len(val) > 0 {
 		num, err := strconv.Atoi(val)
 		if err != nil {
-			panic(errors.New(fmt.Sprintf("Expected integer for field '%s', found '%s'", name, val)))
+			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, val))
 		}
 
 		if num > max || num < min {
-			panic(errors.New(fmt.Sprintf("Expected integer between %d and %d for field '%s', found %s", min, max, name, val)))
+			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, name, val))
 		}
 
 		return num
 	} else if req {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	return 0
 }
@@ -617,17 +611,15 @@ func getRangeIntWithDefault(name string, r map[string]string, min int, max int, 
 		if err != nil {
 			if ignErrs {
 				return def
-			} else {
-				panic(errors.New(fmt.Sprintf("Expected integer for field '%s', found '%s'", name, val)))
 			}
+			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, val))
 		}
 
 		if num > max || num < min {
 			if ignErrs {
 				return def
-			} else {
-				panic(errors.New(fmt.Sprintf("Expected integer between %d and %d for field '%s', found %s", min, max, name, val)))
 			}
+			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, name, val))
 		}
 
 		return num
@@ -640,11 +632,11 @@ func getFloat(name string, r map[string]string, req bool) float32 {
 		trimmed := strings.TrimSpace(val)
 		num, err := strconv.ParseFloat(trimmed, 32)
 		if err != nil {
-			panic(errors.New(fmt.Sprintf("Expected float for field '%s', found '%s'", name, val)))
+			panic(fmt.Errorf("Expected float for field '%s', found '%s'", name, val))
 		}
 		return float32(num)
 	} else if req {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	return -1
 }
@@ -655,9 +647,8 @@ func getNullableFloat(name string, r map[string]string, ignErrs bool) (float32, 
 		if err != nil {
 			if ignErrs {
 				return 0, true
-			} else {
-				panic(errors.New(fmt.Sprintf("Expected float for field '%s', found '%s'", name, val)))
 			}
+			panic(fmt.Errorf("Expected float for field '%s', found '%s'", name, val))
 		}
 		return float32(num), false
 	}
@@ -670,17 +661,15 @@ func getBool(name string, r map[string]string, req bool, def bool, ignErrs bool)
 		if err != nil || (num != 0 && num != 1) {
 			if ignErrs {
 				return def
-			} else {
-				panic(errors.New(fmt.Sprintf("Expected 1 or 0 for field '%s', found '%s'", name, val)))
 			}
+			panic(fmt.Errorf("Expected 1 or 0 for field '%s', found '%s'", name, val))
 		}
 		return num == 1
 	} else if req {
 		if ignErrs {
 			return def
-		} else {
-			panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
 		}
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 	return def
 }
@@ -690,16 +679,16 @@ func getDate(name string, r map[string]string, req bool, ignErrs bool) gtfs.Date
 	var ok bool
 	if str, ok = r[name]; !ok || len(str) == 0 {
 		if req {
-			panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+			panic(fmt.Errorf("Expected required field '%s'", name))
 		} else {
-			return gtfs.Date{0, 0, 0}
+			return gtfs.Date{Day: 0, Month: 0, Year: 0}
 		}
 	}
 
 	var day, month, year int
 	var e error
 	if len(str) < 8 {
-		e = errors.New(fmt.Sprintf("only has %d characters, expected 8", len(str)))
+		e = fmt.Errorf("only has %d characters, expected 8", len(str))
 	}
 	if e == nil {
 		day, e = strconv.Atoi(str[6:8])
@@ -712,9 +701,9 @@ func getDate(name string, r map[string]string, req bool, ignErrs bool) gtfs.Date
 	}
 
 	if e != nil && !ignErrs {
-		panic(errors.New(fmt.Sprintf("Expected YYYYMMDD date for field '%s', found '%s' (%s)", name, str, e.Error())))
+		panic(fmt.Errorf("Expected YYYYMMDD date for field '%s', found '%s' (%s)", name, str, e.Error()))
 	} else {
-		return gtfs.Date{int8(day), int8(month), int16(year)}
+		return gtfs.Date{Day: int8(day), Month: int8(month), Year: int16(year)}
 	}
 }
 
@@ -722,13 +711,13 @@ func getTime(name string, r map[string]string) gtfs.Time {
 	var str string
 	var ok bool
 	if str, ok = r[name]; !ok {
-		panic(errors.New(fmt.Sprintf("Expected required field '%s'", name)))
+		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
 
 	str = strings.TrimSpace(str)
 
 	if len(str) == 0 {
-		return gtfs.Time{int8(-1), int8(-1), int8(-1)}
+		return gtfs.Time{Second: int8(-1), Minute: int8(-1), Hour: int8(-1)}
 	}
 
 	var hour, minute, second int
@@ -736,7 +725,7 @@ func getTime(name string, r map[string]string) gtfs.Time {
 	var e error
 
 	if len(parts) != 3 || len(parts[0]) == 0 || len(parts[1]) != 2 || len(parts[2]) != 2 {
-		e = errors.New(fmt.Sprintf("expected to be in HH:MM:SS format", len(str)))
+		e = fmt.Errorf("expected to be in HH:MM:SS format: '%s'", str)
 	}
 
 	if e == nil {
@@ -750,9 +739,9 @@ func getTime(name string, r map[string]string) gtfs.Time {
 	}
 
 	if e != nil {
-		panic(errors.New(fmt.Sprintf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", name, str, e.Error())))
+		panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", name, str, e.Error()))
 	} else {
-		return gtfs.Time{int8(hour), int8(minute), int8(second)}
+		return gtfs.Time{Hour: int8(hour), Minute: int8(minute), Second: int8(second)}
 	}
 }
 
