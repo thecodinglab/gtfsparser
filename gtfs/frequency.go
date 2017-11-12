@@ -6,6 +6,7 @@
 
 package gtfs
 
+// A Frequency is used to describe a periodically served trip
 type Frequency struct {
 	Start_time   Time
 	End_time     Time

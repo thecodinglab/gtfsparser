@@ -6,6 +6,8 @@
 
 package gtfs
 
+// A Trip is a single vehicle trip traveling through
+// the network with specific times
 type Trip struct {
 	Id                    string
 	Route                 *Route

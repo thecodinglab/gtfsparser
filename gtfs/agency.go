@@ -11,6 +11,7 @@ import (
 	url "net/url"
 )
 
+// An Agency represents a transit agency in GTFS
 type Agency struct {
 	Id       string
 	Name     string

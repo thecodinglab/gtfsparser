@@ -10,6 +10,7 @@ import (
 	url "net/url"
 )
 
+// FeedInfo holds general information about a GTFS feed
 type FeedInfo struct {
 	Publisher_name string
 	Publisher_url  *url.URL

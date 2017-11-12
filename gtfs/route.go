@@ -10,6 +10,8 @@ import (
 	url "net/url"
 )
 
+// A Route describes a group of trips that are presented to passangers as
+// a single service
 type Route struct {
 	Id         string
 	Agency     *Agency

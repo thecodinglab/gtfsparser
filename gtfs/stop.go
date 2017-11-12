@@ -10,6 +10,7 @@ import (
 	url "net/url"
 )
 
+// A Stop object describes a single stop location
 type Stop struct {
 	Id                  string
 	Code                string

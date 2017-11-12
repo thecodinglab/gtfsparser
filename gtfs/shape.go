@@ -10,11 +10,13 @@ import (
 	"strconv"
 )
 
+// A Shape describes the geographical path of one or multiple trips
 type Shape struct {
 	Id     string
 	Points ShapePoints
 }
 
+// A ShapePoint is a single point in a Shape
 type ShapePoint struct {
 	Lat           float32
 	Lon           float32
@@ -24,8 +26,8 @@ type ShapePoint struct {
 }
 
 // Get a string representation of a ShapePoint
-func (shape *ShapePoint) String() string {
-	return strconv.FormatFloat(float64(shape.Lat), 'f', 8, 32) + "," + strconv.FormatFloat(float64(shape.Lon), 'f', 8, 32)
+func (p *ShapePoint) String() string {
+	return strconv.FormatFloat(float64(p.Lat), 'f', 8, 32) + "," + strconv.FormatFloat(float64(p.Lon), 'f', 8, 32)
 }
 
 // Get a string representation of this shape
@@ -43,6 +45,7 @@ func (shape *Shape) String() string {
 	return ret
 }
 
+// ShapePoints are multiple ShapePoints
 type ShapePoints []ShapePoint
 
 func (shapePoints ShapePoints) Len() int {
@@ -57,6 +60,7 @@ func (shapePoints ShapePoints) Swap(i, j int) {
 	shapePoints[i], shapePoints[j] = shapePoints[j], shapePoints[i]
 }
 
+// HasDistanceTraveled returns true if this ShapePoint has a measurement
 func (p *ShapePoint) HasDistanceTraveled() bool {
 	return p.Has_dist
 }

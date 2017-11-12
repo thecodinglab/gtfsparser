@@ -6,6 +6,8 @@
 
 package gtfs
 
+// A FareAttribute is a single fare attribute that applies if
+// certain FareAttributeRules are matched
 type FareAttribute struct {
 	Id                string
 	Price             string
@@ -16,6 +18,8 @@ type FareAttribute struct {
 	Rules             []*FareAttributeRule
 }
 
+// A FareAttributeRule holds rules which describe when a
+// FareAttribute applies
 type FareAttributeRule struct {
 	Route          *Route
 	Origin_id      string // connection to Zone_id in Stop

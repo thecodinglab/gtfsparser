@@ -6,6 +6,8 @@
 
 package gtfs
 
+// A Transfer describes a rule for making connections between routes at
+// certain stops
 type Transfer struct {
 	From_stop         *Stop
 	To_stop           *Stop
