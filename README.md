@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/patrickbr/gtfsparser)](https://goreportcard.com/report/github.com/patrickbr/gtfsparser) [![Build Status](https://travis-ci.org/patrickbr/gtfsparser.svg?branch=master)](https://travis-ci.org/patrickbr/gtfsparser)
+[![Go Report Card](https://goreportcard.com/badge/github.com/patrickbr/gtfsparser)](https://goreportcard.com/report/github.com/patrickbr/gtfsparser) [![Build Status](https://travis-ci.org/patrickbr/gtfsparser.svg?branch=master)](https://travis-ci.org/patrickbr/gtfsparser) [![GoDoc](https://godoc.org/github.com/patrickbr/gtfsparser?status.png)](https://godoc.org/github.com/patrickbr/gtfsparser)
 
 # go gtfsparser
 
