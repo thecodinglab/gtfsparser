@@ -23,14 +23,13 @@ import (
 )
 
 func main() {
-	feed := gtfsparser.NewFeed()
+    feed := gtfsparser.NewFeed()
 
-	feed.Parse("sample-feed.zip")
+    feed.Parse("sample-feed.zip")
 
-	fmt.Printf("Done, parsed %d agencies, %d stops, %d routes, %d trips, %d fare attributes\n\n",
-		len(feed.Agencies), len(feed.Stops), len(feed.Routes), len(feed.Trips), len(feed.FareAttributes))
+    fmt.Printf("Done, parsed %d agencies, %d stops, %d routes, %d trips, %d fare attributes\n\n", len(feed.Agencies), len(feed.Stops), len(feed.Routes), len(feed.Trips), len(feed.FareAttributes))
 
-	for k, v := range feed.Stops {
+    for k, v := range feed.Stops {
         fmt.Printf("[%s] %s (@ %f,%f)\n", k, v.Name, v.Lat, v.Lon)
     }
 }
