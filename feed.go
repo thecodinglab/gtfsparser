@@ -649,13 +649,15 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 }
 
 func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error {
+	fmt.Println(shape.Id)
 	max := float32(math.Inf(-1))
 	deleted := 0
-	for j := 1; j < len(shape.Points); j++ {
+	for j := 1; j < len(shape.Points)+deleted; j++ {
 		i := j - deleted
-		if shape.Points[i-1].HasDistanceTraveled() {
+		if shape.Points[i-1].HasDistanceTraveled() && shape.Points[i-1].Dist_traveled > max {
 			max = shape.Points[i-1].Dist_traveled
 		}
+
 		if shape.Points[i].HasDistanceTraveled() && max > shape.Points[i].Dist_traveled {
 			if opt.UseDefValueOnError {
 				shape.Points[i].Dist_traveled = 0
@@ -664,7 +666,7 @@ func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error 
 				shape.Points = shape.Points[:i+copy(shape.Points[i:], shape.Points[i+1:])]
 				deleted++
 			} else {
-				return fmt.Errorf("In shape '%s' for point with seq=%d shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)
+				return fmt.Errorf("In shape '%s' for point with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)
 			}
 		}
 	}
@@ -674,7 +676,7 @@ func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error 
 func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error {
 	max := float32(math.Inf(-1))
 	deleted := 0
-	for j := 1; j < len(trip.StopTimes); j++ {
+	for j := 1; j < len(trip.StopTimes)+deleted; j++ {
 		i := j - deleted
 
 		if !trip.StopTimes[i-1].Departure_time.Empty() && !trip.StopTimes[i].Arrival_time.Empty() && trip.StopTimes[i-1].Departure_time.SecondsSinceMidnight() > trip.StopTimes[i].Arrival_time.SecondsSinceMidnight() {
@@ -686,7 +688,7 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 			}
 		}
 
-		if trip.StopTimes[i-1].HasDistanceTraveled() {
+		if trip.StopTimes[i-1].HasDistanceTraveled() && trip.StopTimes[i-1].Shape_dist_traveled > max {
 			max = trip.StopTimes[i-1].Shape_dist_traveled
 		}
 
@@ -698,7 +700,7 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
 				deleted++
 			} else {
-				return fmt.Errorf("In trip '%s' for stoptime with seq=%d shape_dist_traveled doeas not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)
+				return fmt.Errorf("In trip '%s' for stoptime with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)
 			}
 		}
 	}

@@ -105,6 +105,12 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 				return nil, errors.New("No agency with id " + aID + " found.")
 			}
 		}
+	} else if len(agencies) == 1 {
+		// if no agency is specified and we only have one agency in agencies.txt, use it here
+		for _, ag := range agencies {
+			a.Agency = ag
+			break
+		}
 	}
 
 	a.Short_name = getString("route_short_name", r, true)
