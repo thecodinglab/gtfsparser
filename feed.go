@@ -649,7 +649,6 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 }
 
 func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error {
-	fmt.Println(shape.Id)
 	max := float32(math.Inf(-1))
 	deleted := 0
 	for j := 1; j < len(shape.Points)+deleted; j++ {
