@@ -450,7 +450,7 @@ func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, opts *Pars
 		panic(errors.New("No stop with id " + getString("to_stop_id", r, true) + " found."))
 	}
 
-	a.Transfer_type = getRangeInt("transfer_type", r, true, 0, 3)
+	a.Transfer_type = getRangeInt("transfer_type", r, false, 0, 3)
 	a.Min_transfer_time = getPositiveIntWithDefault("min_transfer_time", r, -1, opts.UseDefValueOnError)
 
 	return a, nil
