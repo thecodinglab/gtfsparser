@@ -20,9 +20,10 @@ import (
 
 // A ParseOptions object holds options for parsing a the feed
 type ParseOptions struct {
-	UseDefValueOnError bool
-	DropErroneous      bool
-	DryRun             bool
+	UseDefValueOnError   bool
+	DropErroneous        bool
+	DryRun               bool
+	CheckNullCoordinates bool
 }
 
 // Feed represents a single GTFS feed
@@ -55,7 +56,7 @@ func NewFeed() *Feed {
 		Shapes:         make(map[string]*gtfs.Shape),
 		Transfers:      make([]*gtfs.Transfer, 0),
 		FeedInfos:      make([]*gtfs.FeedInfo, 0),
-		opts:           ParseOptions{false, false, false},
+		opts:           ParseOptions{false, false, false, false},
 	}
 	return &g
 }

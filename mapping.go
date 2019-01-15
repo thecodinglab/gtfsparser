@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/patrickbr/gtfsparser/gtfs"
+	"math"
 	mail "net/mail"
 	url "net/url"
 	"strconv"
@@ -25,12 +26,12 @@ func createAgency(r map[string]string, opts *ParseOptions) (ag *gtfs.Agency, err
 	}()
 	a := new(gtfs.Agency)
 
-	a.Id = getString("agency_id", r, false)
-	a.Name = getString("agency_name", r, true)
+	a.Id = getString("agency_id", r, false, false)
+	a.Name = getString("agency_name", r, true, true)
 	a.Url = getURL("agency_url", r, true, opts.UseDefValueOnError)
 	a.Timezone = getTimezone("agency_timezone", r, true, opts.UseDefValueOnError)
 	a.Lang = getIsoLangCode("agency_lang", r, false, opts.UseDefValueOnError)
-	a.Phone = getString("agency_phone", r, false)
+	a.Phone = getString("agency_phone", r, false, false)
 	a.Fare_url = getURL("agency_fare_url", r, false, opts.UseDefValueOnError)
 	a.Email = getMail("agency_email", r, false, opts.UseDefValueOnError)
 
@@ -45,12 +46,12 @@ func createFeedInfo(r map[string]string, opts *ParseOptions) (fi *gtfs.FeedInfo,
 	}()
 	f := new(gtfs.FeedInfo)
 
-	f.Publisher_name = getString("feed_publisher_name", r, true)
+	f.Publisher_name = getString("feed_publisher_name", r, true, true)
 	f.Publisher_url = getURL("feed_publisher_url", r, true, opts.UseDefValueOnError)
-	f.Lang = getString("feed_lang", r, true)
+	f.Lang = getString("feed_lang", r, true, true)
 	f.Start_date = getDate("feed_start_date", r, false, opts.UseDefValueOnError)
 	f.End_date = getDate("feed_end_date", r, false, opts.UseDefValueOnError)
-	f.Version = getString("feed_version", r, false)
+	f.Version = getString("feed_version", r, false, false)
 
 	return f, nil
 }
@@ -64,7 +65,7 @@ func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, opts *Par
 	a := gtfs.Frequency{}
 	var trip *gtfs.Trip
 
-	tripid := getString("trip_id", r, true)
+	tripid := getString("trip_id", r, true, true)
 
 	if val, ok := trips[tripid]; ok {
 		trip = val
@@ -91,9 +92,9 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 		}
 	}()
 	a := new(gtfs.Route)
-	a.Id = getString("route_id", r, true)
+	a.Id = getString("route_id", r, true, true)
 
-	var aID = getString("agency_id", r, false)
+	var aID = getString("agency_id", r, false, true)
 
 	if len(aID) != 0 {
 		if val, ok := agencies[aID]; ok {
@@ -113,9 +114,9 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 		}
 	}
 
-	a.Short_name = getString("route_short_name", r, true)
-	a.Long_name = getString("route_long_name", r, true)
-	a.Desc = getString("route_desc", r, false)
+	a.Short_name = getString("route_short_name", r, true, false)
+	a.Long_name = getString("route_long_name", r, true, false)
+	a.Desc = getString("route_desc", r, false, false)
 	a.Type = int16(getRangeInt("route_type", r, true, 0, 1702)) // allow extended route types
 	a.Url = getURL("route_url", r, false, opts.UseDefValueOnError)
 	a.Color = getColor("route_color", r, false, "ffffff", opts.UseDefValueOnError)
@@ -132,7 +133,7 @@ func createServiceFromCalendar(r map[string]string, services map[string]*gtfs.Se
 	}()
 
 	service := new(gtfs.Service)
-	service.Id = getString("service_id", r, true)
+	service.Id = getString("service_id", r, true, true)
 	service.Exceptions = make(map[gtfs.Date]int8, 0)
 
 	// fill daybitmap
@@ -159,12 +160,12 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 	var service *gtfs.Service
 
 	// first, check if the service already exists
-	if val, ok := services[getString("service_id", r, true)]; ok {
+	if val, ok := services[getString("service_id", r, true, true)]; ok {
 		service = val
 		update = true
 	} else {
 		service = new(gtfs.Service)
-		service.Id = getString("service_id", r, true)
+		service.Id = getString("service_id", r, true, true)
 		service.Exceptions = make(map[gtfs.Date]int8, 0)
 	}
 
@@ -175,7 +176,7 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 	// may be nil during dry run
 	if service != nil {
 		if _, ok := service.Exceptions[date]; ok {
-			return nil, errors.New("Date exception for service id " + getString("service_id", r, true) + " defined 2 times for one date.")
+			return nil, errors.New("Date exception for service id " + getString("service_id", r, true, true) + " defined 2 times for one date.")
 		}
 		service.Exceptions[date] = int8(t)
 	}
@@ -194,13 +195,19 @@ func createStop(r map[string]string, opts *ParseOptions) (s *gtfs.Stop, err erro
 	}()
 	a := new(gtfs.Stop)
 
-	a.Id = getString("stop_id", r, true)
-	a.Code = getString("stop_code", r, false)
-	a.Name = getString("stop_name", r, true)
-	a.Desc = getString("stop_desc", r, false)
+	a.Id = getString("stop_id", r, true, true)
+	a.Code = getString("stop_code", r, false, false)
+	a.Name = getString("stop_name", r, true, true)
+	a.Desc = getString("stop_desc", r, false, false)
 	a.Lat = getFloat("stop_lat", r, true)
 	a.Lon = getFloat("stop_lon", r, true)
-	a.Zone_id = getString("zone_id", r, false)
+
+	// check for 0,0 coordinates, which are most definitely an error
+	if opts.CheckNullCoordinates && math.Abs(float64(a.Lat)) < 0.0001 && math.Abs(float64(a.Lon)) < 0.0001 {
+		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
+	}
+
+	a.Zone_id = getString("zone_id", r, false, false)
 	a.Url = getURL("stop_url", r, false, opts.UseDefValueOnError)
 	a.Location_type = getBool("location_type", r, false, false, opts.UseDefValueOnError)
 	a.Parent_station = nil
@@ -219,16 +226,16 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	a := gtfs.StopTime{}
 	var trip *gtfs.Trip
 
-	if val, ok := trips[getString("trip_id", r, true)]; ok {
+	if val, ok := trips[getString("trip_id", r, true, true)]; ok {
 		trip = val
 	} else {
-		panic(errors.New("No trip with id " + getString("trip_id", r, true) + " found."))
+		panic(errors.New("No trip with id " + getString("trip_id", r, true, true) + " found."))
 	}
 
-	if val, ok := stops[getString("stop_id", r, true)]; ok {
+	if val, ok := stops[getString("stop_id", r, true, true)]; ok {
 		a.Stop = val
 	} else {
-		panic(errors.New("No stop with id " + getString("stop_id", r, true) + " found."))
+		panic(errors.New("No stop with id " + getString("stop_id", r, true, true) + " found."))
 	}
 
 	if a.Stop.Location_type {
@@ -242,7 +249,7 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 		if opts.UseDefValueOnError {
 			a.Arrival_time = a.Departure_time
 		} else {
-			panic(errors.New("Missing arrival time for " + getString("stop_id", r, true) + "."))
+			panic(errors.New("Missing arrival time for " + getString("stop_id", r, true, true) + "."))
 		}
 	}
 
@@ -250,16 +257,16 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 		if opts.UseDefValueOnError {
 			a.Departure_time = a.Arrival_time
 		} else {
-			panic(errors.New("Missing departure time for " + getString("stop_id", r, true) + "."))
+			panic(errors.New("Missing departure time for " + getString("stop_id", r, true, true) + "."))
 		}
 	}
 
 	if a.Arrival_time.SecondsSinceMidnight() > a.Departure_time.SecondsSinceMidnight() {
-		panic(errors.New("Departure before arrival at stop " + getString("stop_id", r, true) + "."))
+		panic(errors.New("Departure before arrival at stop " + getString("stop_id", r, true, true) + "."))
 	}
 
 	a.Sequence = getPositiveInt("stop_sequence", r, true)
-	a.Headsign = getString("stop_headsign", r, false)
+	a.Headsign = getString("stop_headsign", r, false, false)
 	a.Pickup_type = int8(getRangeInt("pickup_type", r, false, 0, 3))
 	a.Drop_off_type = int8(getRangeInt("drop_off_type", r, false, 0, 3))
 	dist, nulled := getNullableFloat("shape_dist_traveled", r, opts.UseDefValueOnError)
@@ -293,26 +300,26 @@ func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 		}
 	}()
 	a := new(gtfs.Trip)
-	a.Id = getString("trip_id", r, true)
+	a.Id = getString("trip_id", r, true, true)
 
-	if val, ok := routes[getString("route_id", r, true)]; ok {
+	if val, ok := routes[getString("route_id", r, true, true)]; ok {
 		a.Route = val
 	} else {
-		panic(fmt.Errorf("No route with id %s found", getString("route_id", r, true)))
+		panic(fmt.Errorf("No route with id %s found", getString("route_id", r, true, true)))
 	}
 
-	if val, ok := services[getString("service_id", r, true)]; ok {
+	if val, ok := services[getString("service_id", r, true, true)]; ok {
 		a.Service = val
 	} else {
-		panic(fmt.Errorf("No service with id %s found", getString("service_id", r, true)))
+		panic(fmt.Errorf("No service with id %s found", getString("service_id", r, true, true)))
 	}
 
-	a.Headsign = getString("trip_headsign", r, false)
-	a.Short_name = getString("trip_short_name", r, false)
+	a.Headsign = getString("trip_headsign", r, false, false)
+	a.Short_name = getString("trip_short_name", r, false, false)
 	a.Direction_id = int8(getRangeInt("direction_id", r, false, 0, 1))
-	a.Block_id = getString("block_id", r, false)
+	a.Block_id = getString("block_id", r, false, false)
 
-	shapeID := getString("shape_id", r, false)
+	shapeID := getString("shape_id", r, false, false)
 
 	if len(shapeID) > 0 {
 		if val, ok := shapes[shapeID]; ok {
@@ -339,7 +346,7 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, opts *
 		}
 	}()
 
-	shapeID := getString("shape_id", r, true)
+	shapeID := getString("shape_id", r, true, true)
 	var shape *gtfs.Shape
 
 	if val, ok := shapes[shapeID]; ok {
@@ -378,9 +385,9 @@ func createFareAttribute(r map[string]string, opts *ParseOptions) (fa *gtfs.Fare
 
 	a := new(gtfs.FareAttribute)
 
-	a.Id = getString("fare_id", r, true)
-	a.Price = getString("price", r, false)
-	a.Currency_type = getString("currency_type", r, true)
+	a.Id = getString("fare_id", r, true, true)
+	a.Price = getString("price", r, false, false)
+	a.Currency_type = getString("currency_type", r, true, true)
 	a.Payment_method = getRangeInt("payment_method", r, false, 0, 1)
 	a.Transfers = getRangeIntWithDefault("transfers", r, 0, 2, -1, opts.UseDefValueOnError)
 	a.Transfer_duration = getInt("transfer_duration", r, false)
@@ -398,7 +405,7 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 	var fareattr *gtfs.FareAttribute
 	var fareid string
 
-	fareid = getString("fare_id", r, true)
+	fareid = getString("fare_id", r, true, true)
 
 	// first, check if the service already exists
 	if val, ok := fareattributes[fareid]; ok {
@@ -410,7 +417,7 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 	// create fare attribute
 	rule := new(gtfs.FareAttributeRule)
 
-	routeID := getString("route_id", r, false)
+	routeID := getString("route_id", r, false, false)
 
 	if len(routeID) > 0 {
 		if val, ok := routes[routeID]; ok {
@@ -420,9 +427,9 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 		}
 	}
 
-	rule.Origin_id = getString("origin_id", r, false)
-	rule.Destination_id = getString("destination_id", r, false)
-	rule.Contains_id = getString("contains_id", r, false)
+	rule.Origin_id = getString("origin_id", r, false, false)
+	rule.Destination_id = getString("destination_id", r, false, false)
+	rule.Contains_id = getString("contains_id", r, false, false)
 
 	fareattr.Rules = append(fareattr.Rules, rule)
 
@@ -438,16 +445,16 @@ func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, opts *Pars
 
 	a := new(gtfs.Transfer)
 
-	if val, ok := stops[getString("from_stop_id", r, true)]; ok {
+	if val, ok := stops[getString("from_stop_id", r, true, true)]; ok {
 		a.From_stop = val
 	} else {
-		panic(errors.New("No stop with id " + getString("from_stop_id", r, true) + " found."))
+		panic(errors.New("No stop with id " + getString("from_stop_id", r, true, true) + " found."))
 	}
 
-	if val, ok := stops[getString("to_stop_id", r, true)]; ok {
+	if val, ok := stops[getString("to_stop_id", r, true, true)]; ok {
 		a.To_stop = val
 	} else {
-		panic(errors.New("No stop with id " + getString("to_stop_id", r, true) + " found."))
+		panic(errors.New("No stop with id " + getString("to_stop_id", r, true, true) + " found."))
 	}
 
 	a.Transfer_type = getRangeInt("transfer_type", r, false, 0, 3)
@@ -456,9 +463,14 @@ func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, opts *Pars
 	return a, nil
 }
 
-func getString(name string, r map[string]string, req bool) string {
+func getString(name string, r map[string]string, req bool, nonempty bool) string {
 	if val, ok := r[name]; ok {
-		return strings.TrimSpace(val)
+		trimmed := strings.TrimSpace(val)
+		if nonempty && len(trimmed) == 0 {
+			panic(fmt.Errorf("Expected non-empty string for field '%s'", name))
+		} else {
+			return trimmed
+		}
 	} else if req {
 		panic(fmt.Errorf("Expected required field '%s'", name))
 	}
