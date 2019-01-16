@@ -94,7 +94,7 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 	a := new(gtfs.Route)
 	a.Id = getString("route_id", r, true, true)
 
-	var aID = getString("agency_id", r, false, true)
+	var aID = getString("agency_id", r, false, false)
 
 	if len(aID) != 0 {
 		if val, ok := agencies[aID]; ok {
