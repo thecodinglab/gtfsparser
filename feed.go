@@ -24,6 +24,7 @@ type ParseOptions struct {
 	DropErroneous        bool
 	DryRun               bool
 	CheckNullCoordinates bool
+	EmptyStringRepl      string
 }
 
 // Feed represents a single GTFS feed
@@ -56,7 +57,7 @@ func NewFeed() *Feed {
 		Shapes:         make(map[string]*gtfs.Shape),
 		Transfers:      make([]*gtfs.Transfer, 0),
 		FeedInfos:      make([]*gtfs.FeedInfo, 0),
-		opts:           ParseOptions{false, false, false, false},
+		opts:           ParseOptions{false, false, false, false, ""},
 	}
 	return &g
 }
