@@ -20,7 +20,7 @@ type Stop struct {
 	Lon                 float32
 	Zone_id             string
 	Url                 *url.URL
-	Location_type       bool
+	Location_type       int8
 	Parent_station      *Stop
 	Timezone            Timezone
 	Wheelchair_boarding int8

@@ -209,7 +209,7 @@ func createStop(r map[string]string, opts *ParseOptions) (s *gtfs.Stop, err erro
 
 	a.Zone_id = getString("zone_id", r, false, false, "")
 	a.Url = getURL("stop_url", r, false, opts.UseDefValueOnError)
-	a.Location_type = getBool("location_type", r, false, false, opts.UseDefValueOnError)
+	a.Location_type = int8(getRangeIntWithDefault("location_type", r, 0, 2, 0, opts.UseDefValueOnError))
 	a.Parent_station = nil
 	a.Timezone = getTimezone("stop_timezone", r, false, opts.UseDefValueOnError)
 	a.Wheelchair_boarding = int8(getRangeIntWithDefault("wheelchair_boarding", r, 0, 2, 0, opts.UseDefValueOnError))
@@ -238,7 +238,7 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 		panic(errors.New("No stop with id " + getString("stop_id", r, true, true, "") + " found."))
 	}
 
-	if a.Stop.Location_type {
+	if a.Stop.Location_type != 0 {
 		panic(errors.New("Stop " + a.Stop.Id + " (" + a.Stop.Name + ") has location_type=1, cannot be used in stop_times.txt!"))
 	}
 
