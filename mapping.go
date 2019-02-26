@@ -574,8 +574,8 @@ func getColor(name string, r map[string]string, req bool, def string, ignErrs bo
 }
 
 func getInt(name string, r map[string]string, req bool) int {
-	if val, ok := r[name]; ok && len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil {
 			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, val))
 		}
@@ -587,8 +587,8 @@ func getInt(name string, r map[string]string, req bool) int {
 }
 
 func getPositiveInt(name string, r map[string]string, req bool) int {
-	if val, ok := r[name]; ok && len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil || num < 0 {
 			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", name, val))
 		}
@@ -600,8 +600,8 @@ func getPositiveInt(name string, r map[string]string, req bool) int {
 }
 
 func getPositiveIntWithDefault(name string, r map[string]string, def int, ignErrs bool) int {
-	if val, ok := r[name]; ok && len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil || num < 0 {
 			if ignErrs {
 				return def
@@ -614,8 +614,8 @@ func getPositiveIntWithDefault(name string, r map[string]string, def int, ignErr
 }
 
 func getRangeInt(name string, r map[string]string, req bool, min int, max int) int {
-	if val, ok := r[name]; ok && len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil {
 			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, val))
 		}
@@ -632,8 +632,8 @@ func getRangeInt(name string, r map[string]string, req bool, min int, max int) i
 }
 
 func getRangeIntWithDefault(name string, r map[string]string, min int, max int, def int, ignErrs bool) int {
-	if val, ok := r[name]; ok && len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil {
 			if ignErrs {
 				return def
@@ -682,8 +682,8 @@ func getNullableFloat(name string, r map[string]string, ignErrs bool) (float32, 
 }
 
 func getBool(name string, r map[string]string, req bool, def bool, ignErrs bool) bool {
-	if val, ok := r[name]; ok && len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
+		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil || (num != 0 && num != 1) {
 			if ignErrs {
 				return def
