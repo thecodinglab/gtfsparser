@@ -197,7 +197,7 @@ func (feed *Feed) parseAgencies(path string) (err error) {
 		return errors.New("Could not open required file agency.txt")
 	}
 
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -233,7 +233,7 @@ func (feed *Feed) parseStops(path string) (err error) {
 		return errors.New("Could not open required file stops.txt")
 	}
 
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -290,7 +290,7 @@ func (feed *Feed) parseRoutes(path string) (err error) {
 		return errors.New("Could not open required file routes.txt")
 	}
 
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -329,7 +329,7 @@ func (feed *Feed) parseCalendar(path string) (err error) {
 		return nil
 	}
 
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -369,7 +369,7 @@ func (feed *Feed) parseCalendarDates(path string) (err error) {
 		return nil
 	}
 
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -409,7 +409,7 @@ func (feed *Feed) parseTrips(path string) (err error) {
 		return errors.New("Could not open required file trips.txt")
 	}
 
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -445,7 +445,7 @@ func (feed *Feed) parseShapes(path string) (err error) {
 		return nil
 	}
 
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -474,7 +474,7 @@ func (feed *Feed) parseStopTimes(path string) (err error) {
 	if e != nil {
 		return errors.New("Could not open required file stop_times.txt")
 	}
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -504,7 +504,7 @@ func (feed *Feed) parseFrequencies(path string) (err error) {
 	if e != nil {
 		return nil
 	}
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -533,7 +533,7 @@ func (feed *Feed) parseFareAttributes(path string) (err error) {
 	if e != nil {
 		return nil
 	}
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -563,7 +563,7 @@ func (feed *Feed) parseFareAttributeRules(path string) (err error) {
 	if e != nil {
 		return nil
 	}
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -592,7 +592,7 @@ func (feed *Feed) parseTransfers(path string) (err error) {
 	if e != nil {
 		return nil
 	}
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -624,7 +624,7 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 	if e != nil {
 		return nil
 	}
-	reader := NewCsvParser(file)
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
 	defer func() {
 		if r := recover(); r != nil {
