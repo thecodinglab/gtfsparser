@@ -25,6 +25,7 @@ type ParseOptions struct {
 	DryRun               bool
 	CheckNullCoordinates bool
 	EmptyStringRepl      string
+	ZipFix               bool
 }
 
 // Feed represents a single GTFS feed
@@ -57,7 +58,7 @@ func NewFeed() *Feed {
 		Shapes:         make(map[string]*gtfs.Shape),
 		Transfers:      make([]*gtfs.Transfer, 0),
 		FeedInfos:      make([]*gtfs.FeedInfo, 0),
-		opts:           ParseOptions{false, false, false, false, ""},
+		opts:           ParseOptions{false, false, false, false, "", true},
 	}
 	return &g
 }
@@ -181,8 +182,16 @@ func (feed *Feed) getFile(path string, name string) (io.Reader, error) {
 		return nil, e
 	}
 
+	// check for any directory that is a ZIP file
+	zipDir := feed.getGTFSDir(feed.zipFileCloser)
+
+	if !feed.opts.ZipFix {
+		zipDir = ""
+	}
+
 	for _, f := range feed.zipFileCloser.File {
-		if f.Name == name {
+		d, n := opath.Split(f.Name)
+		if d == zipDir && n == name {
 			return f.Open()
 		}
 	}
@@ -708,4 +717,46 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 		}
 	}
 	return nil
+}
+
+func (feed *Feed) getGTFSDir(zip *zip.ReadCloser) string {
+	// count number of GTFS file occurances in folders,
+	// return the folder with the most GTFS files
+
+	pathm := make(map[string]int)
+	files := map[string]bool{
+		"agency.txt":          true,
+		"stops.txt":           true,
+		"routes.txt":          true,
+		"trips.txt":           true,
+		"stop_times.txt":      true,
+		"calendar.txt":        true,
+		"calendar_dates.txt":  true,
+		"fare_attributes.txt": true,
+		"fare_rules.txt":      true,
+		"shapes.txt":          true,
+		"frequencies.txt":     true,
+		"transfers.txt":       true,
+		"pathways.txt":        true,
+		"levels.txt":          true,
+		"feed_info.txt":       true,
+	}
+
+	for _, f := range feed.zipFileCloser.File {
+		dir, name := opath.Split(f.Name)
+		if files[name] {
+			pathm[dir] = pathm[dir] + 1
+		}
+	}
+
+	ret := ""
+	max := 0
+	for dir := range pathm {
+		if pathm[dir] > max {
+			max = pathm[dir]
+			ret = dir
+		}
+	}
+
+	return ret
 }
