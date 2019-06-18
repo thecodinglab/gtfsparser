@@ -14,6 +14,7 @@ type FareAttribute struct {
 	Currency_type     string
 	Payment_method    int
 	Transfers         int
+	Agency            *Agency
 	Transfer_duration int
 	Rules             []*FareAttributeRule
 }

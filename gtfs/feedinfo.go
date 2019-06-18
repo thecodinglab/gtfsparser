@@ -7,6 +7,7 @@
 package gtfs
 
 import (
+	mail "net/mail"
 	url "net/url"
 )
 
@@ -17,6 +18,7 @@ type FeedInfo struct {
 	Lang           string
 	Start_date     Date
 	End_date       Date
-	Phone          string
 	Version        string
+	Contact_email  *mail.Address
+	Contact_url    *url.URL
 }

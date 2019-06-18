@@ -16,6 +16,7 @@ type Stop struct {
 	Code                string
 	Name                string
 	Desc                string
+	Has_LatLon          bool
 	Lat                 float32
 	Lon                 float32
 	Zone_id             string
@@ -24,4 +25,6 @@ type Stop struct {
 	Parent_station      *Stop
 	Timezone            Timezone
 	Wheelchair_boarding int8
+	Level               *Level
+	Platform_code       string
 }

@@ -22,4 +22,5 @@ type Route struct {
 	Url        *url.URL
 	Color      string
 	Text_color string
+	Sort_order int
 }

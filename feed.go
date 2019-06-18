@@ -37,6 +37,8 @@ type Feed struct {
 	Services       map[string]*gtfs.Service
 	FareAttributes map[string]*gtfs.FareAttribute
 	Shapes         map[string]*gtfs.Shape
+	Levels         map[string]*gtfs.Level
+	Pathways       map[string]*gtfs.Pathway
 	Transfers      []*gtfs.Transfer
 	FeedInfos      []*gtfs.FeedInfo
 
@@ -56,6 +58,8 @@ func NewFeed() *Feed {
 		Services:       make(map[string]*gtfs.Service),
 		FareAttributes: make(map[string]*gtfs.FareAttribute),
 		Shapes:         make(map[string]*gtfs.Shape),
+		Levels:         make(map[string]*gtfs.Level),
+		Pathways:       make(map[string]*gtfs.Pathway),
 		Transfers:      make([]*gtfs.Transfer, 0),
 		FeedInfos:      make([]*gtfs.FeedInfo, 0),
 		opts:           ParseOptions{false, false, false, false, "", false},
@@ -75,6 +79,9 @@ func (feed *Feed) Parse(path string) error {
 	e = feed.parseAgencies(path)
 	if e == nil {
 		e = feed.parseFeedInfos(path)
+	}
+	if e == nil {
+		e = feed.parseLevels(path)
 	}
 	if e == nil {
 		e = feed.parseStops(path)
@@ -142,6 +149,9 @@ func (feed *Feed) Parse(path string) error {
 	}
 	if e == nil {
 		e = feed.parseTransfers(path)
+	}
+	if e == nil {
+		e = feed.parsePathways(path)
 	}
 
 	// close open readers
@@ -253,7 +263,7 @@ func (feed *Feed) parseStops(path string) (err error) {
 	var record map[string]string
 	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		stop, e := createStop(record, &feed.opts)
+		stop, parentId, e := createStop(record, feed.Levels, &feed.opts)
 		if e == nil {
 			if _, ok := feed.Stops[stop.Id]; ok {
 				e = errors.New("ID collision, stop_id '" + stop.Id + "' already used.")
@@ -266,8 +276,8 @@ func (feed *Feed) parseStops(path string) (err error) {
 				panic(e)
 			}
 		}
-		if v, in := record["parent_station"]; in && len(v) > 0 {
-			parentStopIds[stop.Id] = v
+		if len(parentId) > 0 {
+			parentStopIds[stop.Id] = parentId
 		}
 		feed.Stops[stop.Id] = stop
 	}
@@ -282,10 +292,35 @@ func (feed *Feed) parseStops(path string) (err error) {
 			} else if feed.opts.DropErroneous {
 				// delete the erroneous entry
 				delete(feed.Stops, id)
+				continue
 			} else {
 				panic(errors.New("(for stop id " + id + ") No station with id " + pid + " found, cannot use as parent station here."))
 			}
 		}
+
+		if (feed.Stops[id].Location_type == 0 || feed.Stops[id].Location_type == 2 || feed.Stops[id].Location_type == 3) && pstop.Location_type != 1 {
+			if feed.opts.UseDefValueOnError && !(feed.Stops[id].Location_type == 2 || feed.Stops[id].Location_type == 3) {
+				// continue, the default value "nil" has already be written above
+				continue
+			} else if feed.opts.DropErroneous {
+				// delete the erroneous entry
+				delete(feed.Stops, id)
+				continue
+			} else {
+				panic(fmt.Errorf("(for stop id %s) Station with id %s has location_type=%d, cannot use as parent station here for stop with location_type=%d (must be 1).", id, pid, pstop.Location_type, feed.Stops[id].Location_type))
+			}
+		}
+
+		if feed.Stops[id].Location_type == 4 && pstop.Location_type != 0 {
+			if feed.opts.DropErroneous {
+				// delete the erroneous entry
+				delete(feed.Stops, id)
+				continue
+			} else {
+				panic(fmt.Errorf("(for stop id %s) Station with id %s has location_type=%d, cannot use as parent station here for stop with location_type=4 (boarding area), which expects a parent station with location_type=0 (stop/platform).", id, pid, pstop.Location_type))
+			}
+		}
+
 		feed.Stops[id].Parent_station = pstop
 	}
 
@@ -314,8 +349,7 @@ func (feed *Feed) parseRoutes(path string) (err error) {
 			if _, ok := feed.Routes[route.Id]; ok {
 				e = errors.New("ID collision, route_id '" + route.Id + "' already used.")
 			}
-		}
-		if e != nil {
+		} else {
 			if feed.opts.DropErroneous {
 				continue
 			} else {
@@ -433,8 +467,7 @@ func (feed *Feed) parseTrips(path string) (err error) {
 			if _, ok := feed.Trips[trip.Id]; ok {
 				e = errors.New("ID collision, trip_id '" + trip.Id + "' already used.")
 			}
-		}
-		if e != nil {
+		} else {
 			if feed.opts.DropErroneous {
 				continue
 			} else {
@@ -552,7 +585,7 @@ func (feed *Feed) parseFareAttributes(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		fa, e := createFareAttribute(record, &feed.opts)
+		fa, e := createFareAttribute(record, feed.Agencies, &feed.opts)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -622,6 +655,74 @@ func (feed *Feed) parseTransfers(path string) (err error) {
 		if !feed.opts.DryRun {
 			feed.Transfers = append(feed.Transfers, t)
 		}
+	}
+
+	return e
+}
+
+func (feed *Feed) parsePathways(path string) (err error) {
+	file, e := feed.getFile(path, "pathways.txt")
+
+	if e != nil {
+		return nil
+	}
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = ParseError{"pathways.txt", reader.Curline, r.(error).Error()}
+		}
+	}()
+
+	var record map[string]string
+	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
+		pw, e := createPathway(record, feed.Stops, &feed.opts)
+		if e == nil {
+			if _, ok := feed.Pathways[pw.Id]; ok {
+				e = errors.New("ID collision, pathway_id '" + pw.Id + "' already used.")
+			}
+		} else {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
+		feed.Pathways[pw.Id] = pw
+	}
+
+	return e
+}
+
+func (feed *Feed) parseLevels(path string) (err error) {
+	file, e := feed.getFile(path, "levels.txt")
+
+	if e != nil {
+		return nil
+	}
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = ParseError{"levels.txt", reader.Curline, r.(error).Error()}
+		}
+	}()
+
+	var record map[string]string
+	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
+		lvl, e := createLevel(record, &feed.opts)
+		if e == nil {
+			if _, ok := feed.Levels[lvl.Id]; ok {
+				e = errors.New("ID collision, level_id '" + lvl.Id + "' already used.")
+			}
+		} else {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
+		feed.Levels[lvl.Id] = lvl
 	}
 
 	return e
