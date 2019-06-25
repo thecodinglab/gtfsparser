@@ -14,6 +14,8 @@ import (
 // CsvParser is a wrapper around csv.Reader
 type CsvParser struct {
 	header     []string
+	headeridx  map[string]int
+	ret        map[string]string
 	reader     *csv.Reader
 	Curline    int
 	silentfail bool
@@ -25,6 +27,7 @@ func NewCsvParser(file io.Reader, silentfail bool) CsvParser {
 	reader.TrimLeadingSpace = true
 	reader.LazyQuotes = true
 	reader.FieldsPerRecord = -1
+	reader.ReuseRecord = true
 	p := CsvParser{reader: reader}
 	p.parseHeader()
 	p.silentfail = silentfail
@@ -40,21 +43,23 @@ func (p *CsvParser) ParseRecord() map[string]string {
 		return nil
 	}
 
-	record := make(map[string]string)
-
 	for i, e := range p.header {
 		if i >= len(l) {
-			record[e] = ""
+			p.ret[e] = ""
 		} else {
-			record[e] = l[i]
+			p.ret[e] = l[i]
 		}
 	}
 
-	return record
+	return p.ret
 }
 
 func (p *CsvParser) parseCsvLine() []string {
 	record, err := p.reader.Read()
+
+	// TODO: this does not capture empty CSV lines and comments, as they are skipped
+	// automatically by the CSV reader, and the internal line counter of the CSV reader
+	// is not accessible.
 	p.Curline++
 
 	// handle byte order marks
@@ -86,5 +91,12 @@ func (p *CsvParser) parseCsvLine() []string {
 }
 
 func (p *CsvParser) parseHeader() {
-	p.header = p.parseCsvLine()
+	rec := p.parseCsvLine()
+	p.header = make([]string, len(rec))
+	p.ret = make(map[string]string, len(rec))
+	copy(p.header, rec)
+
+	for _, header := range rec {
+		p.ret[header] = ""
+	}
 }

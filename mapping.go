@@ -78,6 +78,11 @@ func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, opts *Par
 	a.Exact_times = getBool("exact_times", r, false, false, opts.UseDefValueOnError)
 	a.Start_time = getTime("start_time", r)
 	a.End_time = getTime("end_time", r)
+
+	if a.Start_time.SecondsSinceMidnight() > a.End_time.SecondsSinceMidnight() {
+		panic(errors.New("Frequency has start_time > end_time."))
+	}
+
 	a.Headway_secs = getPositiveInt("headway_secs", r, true)
 
 	if !opts.DryRun {

@@ -91,23 +91,6 @@ func (feed *Feed) Parse(path string) error {
 	}
 
 	if e == nil {
-		// sort points in shapes
-		for _, shape := range feed.Shapes {
-			sort.Sort(shape.Points)
-			e = feed.checkShapeMeasure(shape, &feed.opts)
-			if e != nil {
-				break
-			}
-		}
-		if feed.opts.DryRun {
-			// clear space
-			for id := range feed.Shapes {
-				feed.Shapes[id] = nil
-			}
-		}
-	}
-
-	if e == nil {
 		e = feed.parseRoutes(path)
 	}
 	if e == nil {
@@ -121,21 +104,6 @@ func (feed *Feed) Parse(path string) error {
 	}
 	if e == nil {
 		e = feed.parseStopTimes(path)
-	}
-
-	if e == nil {
-		// sort stoptimes in trips
-		for _, trip := range feed.Trips {
-			sort.Sort(trip.StopTimes)
-			e = feed.checkStopTimeMeasure(trip, &feed.opts)
-			if e != nil {
-				break
-			}
-
-			if feed.opts.DryRun {
-				feed.Trips[trip.Id] = nil
-			}
-		}
 	}
 
 	if e == nil {
@@ -507,6 +475,23 @@ func (feed *Feed) parseShapes(path string) (err error) {
 		}
 	}
 
+	if e == nil {
+		// sort points in shapes
+		for _, shape := range feed.Shapes {
+			sort.Sort(shape.Points)
+			e = feed.checkShapeMeasure(shape, &feed.opts)
+			if e != nil {
+				break
+			}
+		}
+		if feed.opts.DryRun {
+			// clear space
+			for id := range feed.Shapes {
+				feed.Shapes[id] = nil
+			}
+		}
+	}
+
 	return e
 }
 
@@ -533,6 +518,21 @@ func (feed *Feed) parseStopTimes(path string) (err error) {
 				continue
 			} else {
 				panic(e)
+			}
+		}
+	}
+
+	if e == nil {
+		// sort stoptimes in trips
+		for _, trip := range feed.Trips {
+			sort.Sort(trip.StopTimes)
+			e = feed.checkStopTimeMeasure(trip, &feed.opts)
+			if e != nil {
+				break
+			}
+
+			if feed.opts.DryRun {
+				feed.Trips[trip.Id] = nil
 			}
 		}
 	}
