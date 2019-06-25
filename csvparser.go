@@ -27,7 +27,7 @@ func NewCsvParser(file io.Reader, silentfail bool) CsvParser {
 	reader.TrimLeadingSpace = true
 	reader.LazyQuotes = true
 	reader.FieldsPerRecord = -1
-	reader.ReuseRecord = true
+	// reader.ReuseRecord = true
 	p := CsvParser{reader: reader}
 	p.parseHeader()
 	p.silentfail = silentfail
