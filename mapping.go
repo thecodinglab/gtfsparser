@@ -641,7 +641,7 @@ func getURL(name string, r map[string]string, req bool, ignErrs bool) *url.URL {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		u, e := url.ParseRequestURI(strings.TrimSpace(val))
 		if e != nil && (req || !ignErrs) {
-			panic(fmt.Errorf("'%s' is not a valid url", val))
+			panic(fmt.Errorf("'%s' is not a valid url", errFldPrep(val)))
 		} else if e != nil {
 			return nil
 		}
@@ -656,7 +656,7 @@ func getMail(name string, r map[string]string, req bool, ignErrs bool) *mail.Add
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		u, e := mail.ParseAddress(strings.TrimSpace(val))
 		if e != nil && (req || !ignErrs) {
-			panic(fmt.Errorf("'%s' is not a valid email address", val))
+			panic(fmt.Errorf("'%s' is not a valid email address", errFldPrep(val)))
 		} else if e != nil {
 			return nil
 		}
@@ -706,7 +706,7 @@ func getColor(name string, r map[string]string, req bool, def string, ignErrs bo
 			if ignErrs {
 				return def
 			}
-			panic(fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", name, val))
+			panic(fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", name, errFldPrep(val)))
 		}
 
 		if _, e := hex.DecodeString(val); e != nil {
@@ -729,7 +729,7 @@ func getInt(name string, r map[string]string, req bool) int {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil {
-			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 		return num
 	} else if req {
@@ -745,7 +745,7 @@ func getIntWithDefault(name string, r map[string]string, def int, ignErrs bool) 
 			if ignErrs {
 				return def
 			}
-			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 		return num
 	}
@@ -756,7 +756,7 @@ func getPositiveInt(name string, r map[string]string, req bool) int {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil || num < 0 {
-			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 		return num
 	} else if req {
@@ -772,7 +772,7 @@ func getPositiveIntWithDefault(name string, r map[string]string, def int, ignErr
 			if ignErrs {
 				return def
 			}
-			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 		return num
 	}
@@ -783,11 +783,11 @@ func getRangeInt(name string, r map[string]string, req bool, min int, max int) i
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil {
-			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 
 		if num > max || num < min {
-			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, name, val))
+			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, name, errFldPrep(val)))
 		}
 
 		return num
@@ -804,14 +804,14 @@ func getRangeIntWithDefault(name string, r map[string]string, min int, max int, 
 			if ignErrs {
 				return def
 			}
-			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 
 		if num > max || num < min {
 			if ignErrs {
 				return def
 			}
-			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, name, val))
+			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, name, errFldPrep(val)))
 		}
 
 		return num
@@ -824,7 +824,7 @@ func getFloat(name string, r map[string]string, req bool) float32 {
 		trimmed := strings.TrimSpace(val)
 		num, err := strconv.ParseFloat(trimmed, 32)
 		if err != nil {
-			panic(fmt.Errorf("Expected float for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected float for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 		return float32(num)
 	} else if req {
@@ -840,7 +840,7 @@ func getNullablePositiveFloat(name string, r map[string]string, ignErrs bool) (f
 			if ignErrs {
 				return 0, true
 			}
-			panic(fmt.Errorf("Expected positive float for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected positive float for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 		return float32(num), false
 	}
@@ -854,7 +854,7 @@ func getNullableFloat(name string, r map[string]string, ignErrs bool) (float32, 
 			if ignErrs {
 				return 0, true
 			}
-			panic(fmt.Errorf("Expected float for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected float for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 		return float32(num), false
 	}
@@ -868,7 +868,7 @@ func getBool(name string, r map[string]string, req bool, def bool, ignErrs bool)
 			if ignErrs {
 				return def
 			}
-			panic(fmt.Errorf("Expected 1 or 0 for field '%s', found '%s'", name, val))
+			panic(fmt.Errorf("Expected 1 or 0 for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 		return num == 1
 	} else if req {
@@ -907,7 +907,7 @@ func getDate(name string, r map[string]string, req bool, ignErrs bool) gtfs.Date
 	}
 
 	if e != nil && !ignErrs {
-		panic(fmt.Errorf("Expected YYYYMMDD date for field '%s', found '%s' (%s)", name, str, e.Error()))
+		panic(fmt.Errorf("Expected YYYYMMDD date for field '%s', found '%s' (%s)", name, errFldPrep(str), e.Error()))
 	} else {
 		return gtfs.Date{Day: int8(day), Month: int8(month), Year: int16(year)}
 	}
@@ -931,7 +931,7 @@ func getTime(name string, r map[string]string) gtfs.Time {
 	var e error
 
 	if len(parts) != 3 || len(parts[0]) == 0 || len(parts[1]) != 2 || len(parts[2]) != 2 {
-		e = fmt.Errorf("expected to be in HH:MM:SS format: '%s'", str)
+		e = fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", name, errFldPrep(str), e.Error())
 	}
 
 	if e == nil {
@@ -945,7 +945,7 @@ func getTime(name string, r map[string]string) gtfs.Time {
 	}
 
 	if e != nil {
-		panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", name, str, e.Error()))
+		panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", name, errFldPrep(str), e.Error()))
 	} else {
 		return gtfs.Time{Hour: int8(hour), Minute: int8(minute), Second: int8(second)}
 	}
@@ -969,4 +969,11 @@ func checkStopTimesOrdering(seq int, sts gtfs.StopTimes) bool {
 	}
 
 	return true
+}
+
+func errFldPrep(val string) string {
+	a := strings.Replace(val, "\r", "<CR>", -1)
+	a = strings.Replace(a, "\n", "<LF>", -1)
+	a = strings.Replace(a, "\025", "<NL>", -1)
+	return a
 }
