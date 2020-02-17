@@ -116,6 +116,10 @@ func (s *Service) GetLastDefinedDate() Date {
 	return last
 }
 
+func (d *Service) IsEmpty() bool {
+	return d.Daymap[0] == false && d.Daymap[1] == false && d.Daymap[2] == false && d.Daymap[3] == false && d.Daymap[4] == false && d.Daymap[5] == false && d.Daymap[6] == false && len(d.Exceptions) == 0
+}
+
 // GetTime constructs a time object from this date, at 12:00:00 noon
 func (d Date) GetTime() time.Time {
 	return time.Date(int(d.Year), time.Month(d.Month), int(d.Day), 12, 0, 0, 0, time.UTC)
