@@ -18,6 +18,25 @@ import (
 	"sort"
 )
 
+// Holds the original column ordering
+type ColOrders struct {
+	Agencies           []string
+	Stops              []string
+	Routes             []string
+	Trips              []string
+	StopTimes          []string
+	Frequencies        []string
+	Calendar           []string
+	CalendarDates      []string
+	FareAttributes     []string
+	FareAttributeRules []string
+	Shapes             []string
+	Levels             []string
+	Pathways           []string
+	Transfers          []string
+	FeedInfos          []string
+}
+
 // A ParseOptions object holds options for parsing a the feed
 type ParseOptions struct {
 	UseDefValueOnError   bool
@@ -41,6 +60,8 @@ type Feed struct {
 	Pathways       map[string]*gtfs.Pathway
 	Transfers      []*gtfs.Transfer
 	FeedInfos      []*gtfs.FeedInfo
+
+	ColOrders ColOrders
 
 	zipFileCloser *zip.ReadCloser
 	curFileHandle *os.File
@@ -210,6 +231,8 @@ func (feed *Feed) parseAgencies(path string) (err error) {
 		feed.Agencies[agency.Id] = agency
 	}
 
+	feed.ColOrders.Agencies = append([]string(nil), reader.header...)
+
 	return e
 }
 
@@ -249,6 +272,8 @@ func (feed *Feed) parseStops(path string) (err error) {
 		}
 		feed.Stops[stop.Id] = stop
 	}
+
+	feed.ColOrders.Stops = append([]string(nil), reader.header...)
 
 	// write the parent stop ids
 	for id, pid := range parentStopIds {
@@ -330,6 +355,9 @@ func (feed *Feed) parseRoutes(path string) (err error) {
 			feed.Routes[route.Id] = route
 		}
 	}
+
+	feed.ColOrders.Routes = append([]string(nil), reader.header...)
+
 	return e
 }
 
@@ -369,6 +397,8 @@ func (feed *Feed) parseCalendar(path string) (err error) {
 			}
 		}
 	}
+
+	feed.ColOrders.Calendar = append([]string(nil), reader.header...)
 
 	return e
 }
@@ -410,6 +440,8 @@ func (feed *Feed) parseCalendarDates(path string) (err error) {
 		}
 	}
 
+	feed.ColOrders.CalendarDates = append([]string(nil), reader.header...)
+
 	return e
 }
 
@@ -445,6 +477,8 @@ func (feed *Feed) parseTrips(path string) (err error) {
 		feed.Trips[trip.Id] = trip
 	}
 
+	feed.ColOrders.Trips = append([]string(nil), reader.header...)
+
 	return e
 }
 
@@ -474,6 +508,8 @@ func (feed *Feed) parseShapes(path string) (err error) {
 			}
 		}
 	}
+
+	feed.ColOrders.Shapes = append([]string(nil), reader.header...)
 
 	if e == nil {
 		// sort points in shapes
@@ -522,6 +558,8 @@ func (feed *Feed) parseStopTimes(path string) (err error) {
 		}
 	}
 
+	feed.ColOrders.StopTimes = append([]string(nil), reader.header...)
+
 	if e == nil {
 		// sort stoptimes in trips
 		for _, trip := range feed.Trips {
@@ -566,6 +604,8 @@ func (feed *Feed) parseFrequencies(path string) (err error) {
 		}
 	}
 
+	feed.ColOrders.Frequencies = append([]string(nil), reader.header...)
+
 	return e
 }
 
@@ -596,6 +636,8 @@ func (feed *Feed) parseFareAttributes(path string) (err error) {
 		feed.FareAttributes[fa.Id] = fa
 	}
 
+	feed.ColOrders.FareAttributes = append([]string(nil), reader.header...)
+
 	return e
 }
 
@@ -624,6 +666,8 @@ func (feed *Feed) parseFareAttributeRules(path string) (err error) {
 			}
 		}
 	}
+
+	feed.ColOrders.FareAttributeRules = append([]string(nil), reader.header...)
 
 	return e
 }
@@ -656,6 +700,8 @@ func (feed *Feed) parseTransfers(path string) (err error) {
 			feed.Transfers = append(feed.Transfers, t)
 		}
 	}
+
+	feed.ColOrders.Transfers = append([]string(nil), reader.header...)
 
 	return e
 }
@@ -691,6 +737,8 @@ func (feed *Feed) parsePathways(path string) (err error) {
 		feed.Pathways[pw.Id] = pw
 	}
 
+	feed.ColOrders.Pathways = append([]string(nil), reader.header...)
+
 	return e
 }
 
@@ -725,6 +773,8 @@ func (feed *Feed) parseLevels(path string) (err error) {
 		feed.Levels[lvl.Id] = lvl
 	}
 
+	feed.ColOrders.Levels = append([]string(nil), reader.header...)
+
 	return e
 }
 
@@ -756,6 +806,8 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 			feed.FeedInfos = append(feed.FeedInfos, fi)
 		}
 	}
+
+	feed.ColOrders.FeedInfos = append([]string(nil), reader.header...)
 
 	return e
 }
