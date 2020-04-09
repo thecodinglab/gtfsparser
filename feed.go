@@ -95,52 +95,56 @@ func (feed *Feed) SetParseOpts(opts ParseOptions) {
 
 // Parse the GTFS data in the specified folder into the feed
 func (feed *Feed) Parse(path string) error {
+	return feed.PrefixParse(path, "")
+}
+
+// Parse the GTFS data in the specified folder into the feed, use
+// and id prefix
+func (feed *Feed) PrefixParse(path string, prefix string) error {
 	var e error
 
-	e = feed.parseAgencies(path)
+	e = feed.parseAgencies(path, prefix)
 	if e == nil {
 		e = feed.parseFeedInfos(path)
 	}
 	if e == nil {
-		e = feed.parseLevels(path)
+		e = feed.parseLevels(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseStops(path)
+		e = feed.parseStops(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseShapes(path)
-	}
-
-	if e == nil {
-		e = feed.parseRoutes(path)
+		e = feed.parseShapes(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseCalendar(path)
+		e = feed.parseRoutes(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseCalendarDates(path)
+		e = feed.parseCalendar(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseTrips(path)
+		e = feed.parseCalendarDates(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseStopTimes(path)
-	}
-
-	if e == nil {
-		e = feed.parseFareAttributes(path)
+		e = feed.parseTrips(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseFareAttributeRules(path)
+		e = feed.parseStopTimes(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseFrequencies(path)
+		e = feed.parseFareAttributes(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseTransfers(path)
+		e = feed.parseFareAttributeRules(path, prefix)
 	}
 	if e == nil {
-		e = feed.parsePathways(path)
+		e = feed.parseFrequencies(path, prefix)
+	}
+	if e == nil {
+		e = feed.parseTransfers(path, prefix)
+	}
+	if e == nil {
+		e = feed.parsePathways(path, prefix)
 	}
 
 	// close open readers
@@ -198,7 +202,7 @@ func (feed *Feed) getFile(path string, name string) (io.Reader, error) {
 	return nil, errors.New("Not found")
 }
 
-func (feed *Feed) parseAgencies(path string) (err error) {
+func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "agency.txt")
 
 	if e != nil {
@@ -215,7 +219,7 @@ func (feed *Feed) parseAgencies(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		agency, e := createAgency(record, &feed.opts)
+		agency, e := createAgency(record, prefix, &feed.opts)
 		if e == nil {
 			if _, ok := feed.Agencies[agency.Id]; ok {
 				e = errors.New("ID collision, agency_id '" + agency.Id + "' already used.")
@@ -236,7 +240,7 @@ func (feed *Feed) parseAgencies(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseStops(path string) (err error) {
+func (feed *Feed) parseStops(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "stops.txt")
 
 	if e != nil {
@@ -254,7 +258,7 @@ func (feed *Feed) parseStops(path string) (err error) {
 	var record map[string]string
 	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		stop, parentId, e := createStop(record, feed.Levels, &feed.opts)
+		stop, parentId, e := createStop(record, feed.Levels, prefix, &feed.opts)
 		if e == nil {
 			if _, ok := feed.Stops[stop.Id]; ok {
 				e = errors.New("ID collision, stop_id '" + stop.Id + "' already used.")
@@ -267,7 +271,7 @@ func (feed *Feed) parseStops(path string) (err error) {
 				panic(e)
 			}
 		}
-		if len(parentId) > 0 {
+		if len(parentId) > len(prefix) {
 			parentStopIds[stop.Id] = parentId
 		}
 		feed.Stops[stop.Id] = stop
@@ -320,7 +324,7 @@ func (feed *Feed) parseStops(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseRoutes(path string) (err error) {
+func (feed *Feed) parseRoutes(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "routes.txt")
 
 	if e != nil {
@@ -337,12 +341,13 @@ func (feed *Feed) parseRoutes(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		route, e := createRoute(record, feed.Agencies, &feed.opts)
+		route, e := createRoute(record, feed.Agencies, prefix, &feed.opts)
 		if e == nil {
 			if _, ok := feed.Routes[route.Id]; ok {
 				e = errors.New("ID collision, route_id '" + route.Id + "' already used.")
 			}
-		} else {
+		}
+		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
 			} else {
@@ -361,7 +366,7 @@ func (feed *Feed) parseRoutes(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseCalendar(path string) (err error) {
+func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "calendar.txt")
 
 	if e != nil {
@@ -378,7 +383,7 @@ func (feed *Feed) parseCalendar(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		service, e := createServiceFromCalendar(record, feed.Services, &feed.opts)
+		service, e := createServiceFromCalendar(record, feed.Services, prefix, &feed.opts)
 
 		if e != nil {
 			if feed.opts.DropErroneous {
@@ -403,7 +408,7 @@ func (feed *Feed) parseCalendar(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseCalendarDates(path string) (err error) {
+func (feed *Feed) parseCalendarDates(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "calendar_dates.txt")
 
 	if e != nil {
@@ -420,7 +425,7 @@ func (feed *Feed) parseCalendarDates(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		service, e := createServiceFromCalendarDates(record, feed.Services)
+		service, e := createServiceFromCalendarDates(record, feed.Services, prefix)
 
 		if e != nil {
 			if feed.opts.DropErroneous {
@@ -445,7 +450,7 @@ func (feed *Feed) parseCalendarDates(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseTrips(path string) (err error) {
+func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "trips.txt")
 
 	if e != nil {
@@ -462,12 +467,13 @@ func (feed *Feed) parseTrips(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		trip, e := createTrip(record, feed.Routes, feed.Services, feed.Shapes, &feed.opts)
+		trip, e := createTrip(record, feed.Routes, feed.Services, feed.Shapes, prefix, &feed.opts)
 		if e == nil {
 			if _, ok := feed.Trips[trip.Id]; ok {
 				e = errors.New("ID collision, trip_id '" + trip.Id + "' already used.")
 			}
-		} else {
+		}
+		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
 			} else {
@@ -482,7 +488,7 @@ func (feed *Feed) parseTrips(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseShapes(path string) (err error) {
+func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "shapes.txt")
 
 	if e != nil {
@@ -499,7 +505,7 @@ func (feed *Feed) parseShapes(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createShapePoint(record, feed.Shapes, &feed.opts)
+		e := createShapePoint(record, feed.Shapes, prefix, &feed.opts)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -531,7 +537,7 @@ func (feed *Feed) parseShapes(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseStopTimes(path string) (err error) {
+func (feed *Feed) parseStopTimes(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "stop_times.txt")
 
 	if e != nil {
@@ -547,7 +553,7 @@ func (feed *Feed) parseStopTimes(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createStopTime(record, feed.Stops, feed.Trips, &feed.opts)
+		e := createStopTime(record, feed.Stops, feed.Trips, prefix, &feed.opts)
 
 		if e != nil {
 			if feed.opts.DropErroneous {
@@ -578,7 +584,7 @@ func (feed *Feed) parseStopTimes(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseFrequencies(path string) (err error) {
+func (feed *Feed) parseFrequencies(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "frequencies.txt")
 
 	if e != nil {
@@ -594,7 +600,7 @@ func (feed *Feed) parseFrequencies(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createFrequency(record, feed.Trips, &feed.opts)
+		e := createFrequency(record, feed.Trips, prefix, &feed.opts)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -609,7 +615,7 @@ func (feed *Feed) parseFrequencies(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseFareAttributes(path string) (err error) {
+func (feed *Feed) parseFareAttributes(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "fare_attributes.txt")
 
 	if e != nil {
@@ -625,7 +631,7 @@ func (feed *Feed) parseFareAttributes(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		fa, e := createFareAttribute(record, feed.Agencies, &feed.opts)
+		fa, e := createFareAttribute(record, feed.Agencies, prefix, &feed.opts)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -641,7 +647,7 @@ func (feed *Feed) parseFareAttributes(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseFareAttributeRules(path string) (err error) {
+func (feed *Feed) parseFareAttributeRules(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "fare_rules.txt")
 
 	if e != nil {
@@ -657,7 +663,7 @@ func (feed *Feed) parseFareAttributeRules(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createFareRule(record, feed.FareAttributes, feed.Routes)
+		e := createFareRule(record, feed.FareAttributes, feed.Routes, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -672,7 +678,7 @@ func (feed *Feed) parseFareAttributeRules(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseTransfers(path string) (err error) {
+func (feed *Feed) parseTransfers(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "transfers.txt")
 
 	if e != nil {
@@ -688,7 +694,7 @@ func (feed *Feed) parseTransfers(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		t, e := createTransfer(record, feed.Stops, &feed.opts)
+		t, e := createTransfer(record, feed.Stops, prefix, &feed.opts)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
@@ -706,7 +712,7 @@ func (feed *Feed) parseTransfers(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parsePathways(path string) (err error) {
+func (feed *Feed) parsePathways(path string, prefix string) (err error) {
 	file, e := feed.getFile(path, "pathways.txt")
 
 	if e != nil {
@@ -722,12 +728,13 @@ func (feed *Feed) parsePathways(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		pw, e := createPathway(record, feed.Stops, &feed.opts)
+		pw, e := createPathway(record, feed.Stops, prefix, &feed.opts)
 		if e == nil {
 			if _, ok := feed.Pathways[pw.Id]; ok {
 				e = errors.New("ID collision, pathway_id '" + pw.Id + "' already used.")
 			}
-		} else {
+		}
+		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
 			} else {
@@ -742,7 +749,7 @@ func (feed *Feed) parsePathways(path string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseLevels(path string) (err error) {
+func (feed *Feed) parseLevels(path string, idprefix string) (err error) {
 	file, e := feed.getFile(path, "levels.txt")
 
 	if e != nil {
@@ -758,12 +765,14 @@ func (feed *Feed) parseLevels(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		lvl, e := createLevel(record, &feed.opts)
+		lvl, e := createLevel(record, idprefix, &feed.opts)
 		if e == nil {
 			if _, ok := feed.Levels[lvl.Id]; ok {
 				e = errors.New("ID collision, level_id '" + lvl.Id + "' already used.")
 			}
-		} else {
+		}
+
+		if e != nil {
 			if feed.opts.DropErroneous {
 				continue
 			} else {

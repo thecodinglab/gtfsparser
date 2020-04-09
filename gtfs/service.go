@@ -28,7 +28,8 @@ type Date struct {
 
 // IsActiveOn returns true if the service is active on a particular date
 func (s *Service) IsActiveOn(d Date) bool {
-	return s.GetExceptionTypeOn(d) == 1 || (s.Daymap[int(d.GetTime().Weekday())] && !(d.GetTime().Before(s.Start_date.GetTime())) && !(d.GetTime().After(s.End_date.GetTime())) && s.GetExceptionTypeOn(d) < 2)
+	t := d.GetTime()
+	return (s.Daymap[int(t.Weekday())] && !(t.Before(s.Start_date.GetTime())) && !(t.After(s.End_date.GetTime())) && s.GetExceptionTypeOn(d) < 2) || s.GetExceptionTypeOn(d) == 1
 }
 
 // GetExceptionTypeOn returns the expection type on a particular day
@@ -53,6 +54,10 @@ func (d Date) GetOffsettedDate(offset int) Date {
 // Equals returns true if the service is exactly the same - that is
 // if it is active on exactly the same days
 func (s *Service) Equals(b *Service) bool {
+	if s == b {
+		// shortcut
+		return true
+	}
 	startA := s.GetFirstDefinedDate()
 	endA := s.GetLastDefinedDate()
 
@@ -67,10 +72,6 @@ func (s *Service) Equals(b *Service) bool {
 		startA = startB
 	}
 
-	if endA.GetTime().Before(endB.GetTime()) {
-		endA = endB
-	}
-
 	for d := startA; !d.GetTime().After(endA.GetTime()); d = d.GetOffsettedDate(1) {
 		if s.IsActiveOn(d) != b.IsActiveOn(d) {
 			return false
@@ -78,6 +79,32 @@ func (s *Service) Equals(b *Service) bool {
 	}
 
 	return true
+}
+
+// Returns the date intersection of two services
+func (a *Service) Intersection(b *Service) []Date {
+	ret := make([]Date, 0)
+	startA := a.GetFirstDefinedDate()
+	endA := a.GetLastDefinedDate()
+
+	startB := b.GetFirstDefinedDate()
+	endB := b.GetLastDefinedDate()
+
+	if endA.GetTime().After(endB.GetTime()) {
+		endA = endB
+	}
+
+	if startA.GetTime().Before(startB.GetTime()) {
+		startA = startB
+	}
+
+	for d := startA; !d.GetTime().After(endA.GetTime()); d = d.GetOffsettedDate(1) {
+		if a.IsActiveOn(d) && b.IsActiveOn(d) {
+			ret = append(ret, d)
+		}
+	}
+
+	return ret
 }
 
 // GetFirstDefinedDate returns the first date something is defined

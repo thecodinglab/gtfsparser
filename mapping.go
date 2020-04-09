@@ -18,7 +18,7 @@ import (
 	"strings"
 )
 
-func createAgency(r map[string]string, opts *ParseOptions) (ag *gtfs.Agency, err error) {
+func createAgency(r map[string]string, prefix string, opts *ParseOptions) (ag *gtfs.Agency, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -26,7 +26,7 @@ func createAgency(r map[string]string, opts *ParseOptions) (ag *gtfs.Agency, err
 	}()
 	a := new(gtfs.Agency)
 
-	a.Id = getString("agency_id", r, false, false, "")
+	a.Id = prefix + getString("agency_id", r, false, false, "")
 	a.Name = getString("agency_name", r, true, true, opts.EmptyStringRepl)
 	a.Url = getURL("agency_url", r, true, opts.UseDefValueOnError)
 	a.Timezone = getTimezone("agency_timezone", r, true, opts.UseDefValueOnError)
@@ -58,7 +58,7 @@ func createFeedInfo(r map[string]string, opts *ParseOptions) (fi *gtfs.FeedInfo,
 	return f, nil
 }
 
-func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, opts *ParseOptions) (err error) {
+func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, prefix string, opts *ParseOptions) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -67,7 +67,7 @@ func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, opts *Par
 	a := gtfs.Frequency{}
 	var trip *gtfs.Trip
 
-	tripid := getString("trip_id", r, true, true, "")
+	tripid := prefix + getString("trip_id", r, true, true, "")
 
 	if val, ok := trips[tripid]; ok {
 		trip = val
@@ -92,32 +92,46 @@ func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, opts *Par
 	return nil
 }
 
-func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *ParseOptions) (route *gtfs.Route, err error) {
+func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, prefix string, opts *ParseOptions) (route *gtfs.Route, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
 		}
 	}()
 	a := new(gtfs.Route)
-	a.Id = getString("route_id", r, true, true, "")
+	a.Id = prefix + getString("route_id", r, true, true, "")
 
-	var aID = getString("agency_id", r, false, false, "")
+	var aID = prefix + getString("agency_id", r, false, false, "")
 
-	if len(aID) != 0 {
+	if len(aID) != len(prefix) {
 		if val, ok := agencies[aID]; ok {
 			a.Agency = val
 		} else {
 			if opts.UseDefValueOnError {
 				a.Agency = nil
 			} else {
-				return nil, errors.New("No agency with id " + aID + " found.")
+				return nil, errors.New("No agency with id " + getString("agency_id", r, false, false, "") + " found.")
 			}
 		}
-	} else if len(agencies) == 1 {
+	} else if len(prefix) == 0 && len(agencies) == 1 {
 		// if no agency is specified and we only have one agency in agencies.txt, use it here
 		for _, ag := range agencies {
 			a.Agency = ag
 			break
+		}
+	} else if len(prefix) > 0 {
+		c := 0
+		aId := ""
+		// if no agency is specified and we only have one agency in agencies.txt, use it here
+		for _, ag := range agencies {
+			if strings.HasPrefix(ag.Id, prefix) {
+				aId = ag.Id
+				c += 1
+			}
+		}
+
+		if c == 1 {
+			a.Agency = agencies[aId]
 		}
 	}
 
@@ -138,7 +152,7 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, opts *Pa
 	return a, nil
 }
 
-func createServiceFromCalendar(r map[string]string, services map[string]*gtfs.Service, opts *ParseOptions) (s *gtfs.Service, err error) {
+func createServiceFromCalendar(r map[string]string, services map[string]*gtfs.Service, prefix string, opts *ParseOptions) (s *gtfs.Service, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -146,7 +160,7 @@ func createServiceFromCalendar(r map[string]string, services map[string]*gtfs.Se
 	}()
 
 	service := new(gtfs.Service)
-	service.Id = getString("service_id", r, true, true, "")
+	service.Id = prefix + getString("service_id", r, true, true, "")
 	service.Exceptions = make(map[gtfs.Date]int8, 0)
 
 	// fill daybitmap
@@ -163,7 +177,7 @@ func createServiceFromCalendar(r map[string]string, services map[string]*gtfs.Se
 	return service, nil
 }
 
-func createServiceFromCalendarDates(r map[string]string, services map[string]*gtfs.Service) (s *gtfs.Service, err error) {
+func createServiceFromCalendarDates(r map[string]string, services map[string]*gtfs.Service, prefix string) (s *gtfs.Service, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -173,7 +187,7 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 	var service *gtfs.Service
 
 	// first, check if the service already exists
-	if val, ok := services[getString("service_id", r, true, true, "")]; ok {
+	if val, ok := services[prefix+getString("service_id", r, true, true, "")]; ok {
 		service = val
 		update = true
 	} else {
@@ -200,7 +214,7 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 	return service, nil
 }
 
-func createStop(r map[string]string, levels map[string]*gtfs.Level, opts *ParseOptions) (s *gtfs.Stop, pid string, err error) {
+func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix string, opts *ParseOptions) (s *gtfs.Stop, pid string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -209,7 +223,7 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, opts *ParseO
 	a := new(gtfs.Stop)
 	parentId := ""
 
-	a.Id = getString("stop_id", r, true, true, "")
+	a.Id = prefix + getString("stop_id", r, true, true, "")
 	a.Code = getString("stop_code", r, false, false, "")
 	a.Location_type = int8(getRangeIntWithDefault("location_type", r, 0, 4, 0, opts.UseDefValueOnError))
 	a.Name = getString("stop_name", r, a.Location_type < 3, a.Location_type < 3, opts.EmptyStringRepl)
@@ -251,16 +265,19 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, opts *ParseO
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
 	}
 
-	a.Zone_id = getString("zone_id", r, false, false, "")
+	a.Zone_id = prefix + getString("zone_id", r, false, false, "")
+	if len(a.Zone_id) == len(prefix) {
+		a.Zone_id = ""
+	}
 	a.Url = getURL("stop_url", r, false, opts.UseDefValueOnError)
 
 	// will be filled later on
 	a.Parent_station = nil
 
 	if a.Location_type > 1 {
-		parentId = getString("parent_station", r, true, true, "")
+		parentId = prefix + getString("parent_station", r, true, true, "")
 	} else if a.Location_type == 0 {
-		parentId = getString("parent_station", r, false, false, "")
+		parentId = prefix + getString("parent_station", r, false, false, "")
 	} else {
 		if len(getString("parent_station", r, false, false, "")) > 0 {
 			panic(fmt.Errorf("'parent_station' cannot be defined for location_type=1."))
@@ -271,9 +288,9 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, opts *ParseO
 	a.Wheelchair_boarding = int8(getRangeIntWithDefault("wheelchair_boarding", r, 0, 2, 0, opts.UseDefValueOnError))
 	a.Level = nil
 
-	levelId := getString("level_id", r, false, false, "")
+	levelId := prefix + getString("level_id", r, false, false, "")
 
-	if len(levelId) > 0 {
+	if len(levelId) > len(prefix) {
 		if val, ok := levels[levelId]; ok {
 			a.Level = val
 		} else {
@@ -286,7 +303,7 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, opts *ParseO
 	return a, parentId, nil
 }
 
-func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[string]*gtfs.Trip, opts *ParseOptions) (err error) {
+func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[string]*gtfs.Trip, prefix string, opts *ParseOptions) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -295,13 +312,13 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	a := gtfs.StopTime{}
 	var trip *gtfs.Trip
 
-	if val, ok := trips[getString("trip_id", r, true, true, "")]; ok {
+	if val, ok := trips[prefix+getString("trip_id", r, true, true, "")]; ok {
 		trip = val
 	} else {
 		panic(errors.New("No trip with id " + getString("trip_id", r, true, true, "") + " found."))
 	}
 
-	if val, ok := stops[getString("stop_id", r, true, true, "")]; ok {
+	if val, ok := stops[prefix+getString("stop_id", r, true, true, "")]; ok {
 		a.Stop = val
 	} else {
 		panic(errors.New("No stop with id " + getString("stop_id", r, true, true, "") + " found."))
@@ -362,22 +379,22 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 
 func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 	services map[string]*gtfs.Service,
-	shapes map[string]*gtfs.Shape, opts *ParseOptions) (t *gtfs.Trip, err error) {
+	shapes map[string]*gtfs.Shape, prefix string, opts *ParseOptions) (t *gtfs.Trip, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
 		}
 	}()
 	a := new(gtfs.Trip)
-	a.Id = getString("trip_id", r, true, true, "")
+	a.Id = prefix + getString("trip_id", r, true, true, "")
 
-	if val, ok := routes[getString("route_id", r, true, true, "")]; ok {
+	if val, ok := routes[prefix+getString("route_id", r, true, true, "")]; ok {
 		a.Route = val
 	} else {
 		panic(fmt.Errorf("No route with id %s found", getString("route_id", r, true, true, "")))
 	}
 
-	if val, ok := services[getString("service_id", r, true, true, "")]; ok {
+	if val, ok := services[prefix+getString("service_id", r, true, true, "")]; ok {
 		a.Service = val
 	} else {
 		panic(fmt.Errorf("No service with id %s found", getString("service_id", r, true, true, "")))
@@ -386,11 +403,14 @@ func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 	a.Headsign = getString("trip_headsign", r, false, false, "")
 	a.Short_name = getString("trip_short_name", r, false, false, "")
 	a.Direction_id = int8(getRangeInt("direction_id", r, false, 0, 1))
-	a.Block_id = getString("block_id", r, false, false, "")
+	a.Block_id = prefix + getString("block_id", r, false, false, "")
+	if len(a.Block_id) == len(prefix) {
+		a.Block_id = ""
+	}
 
-	shapeID := getString("shape_id", r, false, false, "")
+	shapeID := prefix + getString("shape_id", r, false, false, "")
 
-	if len(shapeID) > 0 {
+	if len(shapeID) > len(prefix) {
 		if val, ok := shapes[shapeID]; ok {
 			a.Shape = val
 		} else {
@@ -408,14 +428,14 @@ func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 	return a, nil
 }
 
-func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, opts *ParseOptions) (err error) {
+func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, prefix string, opts *ParseOptions) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
 		}
 	}()
 
-	shapeID := getString("shape_id", r, true, true, "")
+	shapeID := prefix + getString("shape_id", r, true, true, "")
 	var shape *gtfs.Shape
 
 	if val, ok := shapes[shapeID]; ok {
@@ -445,7 +465,7 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, opts *
 	return nil
 }
 
-func createFareAttribute(r map[string]string, agencies map[string]*gtfs.Agency, opts *ParseOptions) (fa *gtfs.FareAttribute, err error) {
+func createFareAttribute(r map[string]string, agencies map[string]*gtfs.Agency, prefix string, opts *ParseOptions) (fa *gtfs.FareAttribute, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -454,7 +474,7 @@ func createFareAttribute(r map[string]string, agencies map[string]*gtfs.Agency, 
 
 	a := new(gtfs.FareAttribute)
 
-	a.Id = getString("fare_id", r, true, true, "")
+	a.Id = prefix + getString("fare_id", r, true, true, "")
 	a.Price = getString("price", r, false, false, "")
 	if opts.UseDefValueOnError {
 		a.Currency_type = getString("currency_type", r, true, true, "XXX")
@@ -465,16 +485,16 @@ func createFareAttribute(r map[string]string, agencies map[string]*gtfs.Agency, 
 	a.Transfers = getRangeIntWithDefault("transfers", r, 0, 2, -1, opts.UseDefValueOnError)
 	a.Transfer_duration = getInt("transfer_duration", r, false)
 
-	aID := getString("agency_id", r, false, false, "")
+	aID := prefix + getString("agency_id", r, false, false, "")
 
-	if len(aID) != 0 {
+	if len(aID) != len(prefix) {
 		if val, ok := agencies[aID]; ok {
 			a.Agency = val
 		} else {
 			if opts.UseDefValueOnError {
 				a.Agency = nil
 			} else {
-				return nil, errors.New("No agency with id " + aID + " found.")
+				return nil, errors.New("No agency with id " + getString("agency_id", r, false, false, "") + " found.")
 			}
 		}
 	} else if len(agencies) > 1 {
@@ -484,7 +504,7 @@ func createFareAttribute(r map[string]string, agencies map[string]*gtfs.Agency, 
 	return a, nil
 }
 
-func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAttribute, routes map[string]*gtfs.Route) (err error) {
+func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAttribute, routes map[string]*gtfs.Route, prefix string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -494,7 +514,7 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 	var fareattr *gtfs.FareAttribute
 	var fareid string
 
-	fareid = getString("fare_id", r, true, true, "")
+	fareid = prefix + getString("fare_id", r, true, true, "")
 
 	// first, check if the service already exists
 	if val, ok := fareattributes[fareid]; ok {
@@ -506,9 +526,9 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 	// create fare attribute
 	rule := new(gtfs.FareAttributeRule)
 
-	routeID := getString("route_id", r, false, false, "")
+	routeID := prefix + getString("route_id", r, false, false, "")
 
-	if len(routeID) > 0 {
+	if len(routeID) > len(prefix) {
 		if val, ok := routes[routeID]; ok {
 			rule.Route = val
 		} else {
@@ -516,16 +536,16 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 		}
 	}
 
-	rule.Origin_id = getString("origin_id", r, false, false, "")
-	rule.Destination_id = getString("destination_id", r, false, false, "")
-	rule.Contains_id = getString("contains_id", r, false, false, "")
+	rule.Origin_id = prefix + getString("origin_id", r, false, false, "")
+	rule.Destination_id = prefix + getString("destination_id", r, false, false, "")
+	rule.Contains_id = prefix + getString("contains_id", r, false, false, "")
 
 	fareattr.Rules = append(fareattr.Rules, rule)
 
 	return nil
 }
 
-func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, opts *ParseOptions) (t *gtfs.Transfer, err error) {
+func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, prefix string, opts *ParseOptions) (t *gtfs.Transfer, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -534,13 +554,13 @@ func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, opts *Pars
 
 	a := new(gtfs.Transfer)
 
-	if val, ok := stops[getString("from_stop_id", r, true, true, "")]; ok {
+	if val, ok := stops[prefix+getString("from_stop_id", r, true, true, "")]; ok {
 		a.From_stop = val
 	} else {
 		panic(errors.New("No stop with id " + getString("from_stop_id", r, true, true, "") + " found."))
 	}
 
-	if val, ok := stops[getString("to_stop_id", r, true, true, "")]; ok {
+	if val, ok := stops[prefix+getString("to_stop_id", r, true, true, "")]; ok {
 		a.To_stop = val
 	} else {
 		panic(errors.New("No stop with id " + getString("to_stop_id", r, true, true, "") + " found."))
@@ -552,7 +572,7 @@ func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, opts *Pars
 	return a, nil
 }
 
-func createPathway(r map[string]string, stops map[string]*gtfs.Stop, opts *ParseOptions) (t *gtfs.Pathway, err error) {
+func createPathway(r map[string]string, stops map[string]*gtfs.Stop, prefix string, opts *ParseOptions) (t *gtfs.Pathway, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -561,9 +581,9 @@ func createPathway(r map[string]string, stops map[string]*gtfs.Stop, opts *Parse
 
 	a := new(gtfs.Pathway)
 
-	a.Id = getString("pathway_id", r, true, true, "")
+	a.Id = prefix + getString("pathway_id", r, true, true, "")
 
-	if val, ok := stops[getString("from_stop_id", r, true, true, "")]; ok {
+	if val, ok := stops[prefix+getString("from_stop_id", r, true, true, "")]; ok {
 		a.From_stop = val
 		if a.From_stop.Location_type == 1 {
 			panic(errors.New("Stop for 'from_stop_id' with id " + getString("from_stop_id", r, true, true, "") + " has location_type=1 (Station). Only stops/platforms (location_type=0), entrances/exits (location_type=2), generic nodes (location_type=3) or boarding areas (location_type=4) are allowed here."))
@@ -572,7 +592,7 @@ func createPathway(r map[string]string, stops map[string]*gtfs.Stop, opts *Parse
 		panic(errors.New("No stop with id " + getString("from_stop_id", r, true, true, "") + " found."))
 	}
 
-	if val, ok := stops[getString("to_stop_id", r, true, true, "")]; ok {
+	if val, ok := stops[prefix+getString("to_stop_id", r, true, true, "")]; ok {
 		a.To_stop = val
 		if a.To_stop.Location_type == 1 {
 			panic(errors.New("Stop for 'to_stop_id' with id " + getString("to_stop_id", r, true, true, "") + " has location_type=1 (Station). Only stops/platforms (location_type=0), entrances/exits (location_type=2), generic nodes (location_type=3) or boarding areas (location_type=4) are allowed here."))
@@ -603,7 +623,7 @@ func createPathway(r map[string]string, stops map[string]*gtfs.Stop, opts *Parse
 	return a, nil
 }
 
-func createLevel(r map[string]string, opts *ParseOptions) (t *gtfs.Level, err error) {
+func createLevel(r map[string]string, idprefix string, opts *ParseOptions) (t *gtfs.Level, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -612,7 +632,7 @@ func createLevel(r map[string]string, opts *ParseOptions) (t *gtfs.Level, err er
 
 	a := new(gtfs.Level)
 
-	a.Id = getString("level_id", r, true, true, "")
+	a.Id = idprefix + getString("level_id", r, true, true, "")
 	a.Index, _ = getNullableFloat("level_index", r, opts.UseDefValueOnError)
 	a.Name = getString("level_name", r, false, false, "")
 
