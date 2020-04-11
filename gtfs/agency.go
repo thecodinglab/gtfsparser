@@ -13,12 +13,13 @@ import (
 
 // An Agency represents a transit agency in GTFS
 type Agency struct {
-	Id       string
-	Name     string
-	Url      *url.URL
-	Timezone Timezone
-	Lang     LanguageISO6391
-	Phone    string
-	Fare_url *url.URL
-	Email    *mail.Address
+	Id           string
+	Name         string
+	Url          *url.URL
+	Timezone     Timezone
+	Lang         LanguageISO6391
+	Phone        string
+	Fare_url     *url.URL
+	Email        *mail.Address
+	Attributions []*Attribution
 }

@@ -21,4 +21,5 @@ type Trip struct {
 	Bikes_allowed         int8
 	StopTimes             StopTimes
 	Frequencies           []Frequency
+	Attributions          []*Attribution
 }

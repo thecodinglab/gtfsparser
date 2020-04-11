@@ -35,6 +35,7 @@ type ColOrders struct {
 	Pathways           []string
 	Transfers          []string
 	FeedInfos          []string
+	Attributions       []string
 }
 
 // A ParseOptions object holds options for parsing a the feed
@@ -60,6 +61,9 @@ type Feed struct {
 	Pathways       map[string]*gtfs.Pathway
 	Transfers      []*gtfs.Transfer
 	FeedInfos      []*gtfs.FeedInfo
+
+	// this only holds feed-wide attributions
+	Attributions []*gtfs.Attribution
 
 	ColOrders ColOrders
 
@@ -145,6 +149,9 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	}
 	if e == nil {
 		e = feed.parsePathways(path, prefix)
+	}
+	if e == nil {
+		e = feed.parseAttributions(path, prefix)
 	}
 
 	// close open readers
@@ -745,6 +752,57 @@ func (feed *Feed) parsePathways(path string, prefix string) (err error) {
 	}
 
 	feed.ColOrders.Pathways = append([]string(nil), reader.header...)
+
+	return e
+}
+
+func (feed *Feed) parseAttributions(path string, prefix string) (err error) {
+	file, e := feed.getFile(path, "attributions.txt")
+
+	if e != nil {
+		return nil
+	}
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = ParseError{"attributions.txt", reader.Curline, r.(error).Error()}
+		}
+	}()
+
+	ids := make(map[string]bool)
+
+	var record map[string]string
+	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
+		attr, ag, route, trip, e := createAttribution(record, feed, prefix, &feed.opts)
+		if e == nil {
+			if _, ok := ids[attr.Id]; ok {
+				e = errors.New("ID collision, attribution_id '" + attr.Id + "' already used.")
+			}
+			ids[attr.Id] = true
+		}
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
+
+		if ag != nil {
+			ag.Attributions = append(ag.Attributions, attr)
+		} else if route != nil {
+			route.Attributions = append(route.Attributions, attr)
+		} else if trip != nil {
+			trip.Attributions = append(trip.Attributions, attr)
+		} else {
+			// if the attribution is not for a specific agency, route or trip,
+			// add it to feed-wide
+			feed.Attributions = append(feed.Attributions, attr)
+		}
+	}
+
+	feed.ColOrders.Attributions = append([]string(nil), reader.header...)
 
 	return e
 }

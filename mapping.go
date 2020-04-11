@@ -18,6 +18,64 @@ import (
 	"strings"
 )
 
+func createAttribution(r map[string]string, feed *Feed, prefix string, opts *ParseOptions) (attr *gtfs.Attribution, ag *gtfs.Agency, route *gtfs.Route, trip *gtfs.Trip, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+
+	a := new(gtfs.Attribution)
+
+	a.Id = prefix + getString("attribution_id", r, false, false, "")
+	a.Organization_name = getString("organization_name", r, true, true, opts.EmptyStringRepl)
+	a.Is_producer = getBool("is_producer", r, false, false, opts.UseDefValueOnError)
+	a.Is_operator = getBool("is_operator", r, false, false, opts.UseDefValueOnError)
+	a.Is_authority = getBool("is_authority", r, false, false, opts.UseDefValueOnError)
+
+	a.Url = getURL("attribution_url", r, false, opts.UseDefValueOnError)
+	a.Email = getMail("attribution_email", r, false, opts.UseDefValueOnError)
+	a.Phone = getString("attribution_phone", r, false, false, opts.EmptyStringRepl)
+
+	routeId := getString("route_id", r, false, false, "")
+	agencyId := getString("agency_id", r, false, false, "")
+	tripId := getString("trip_id", r, false, false, "")
+
+	if !a.Is_producer && !a.Is_operator && !a.Is_authority {
+		return nil, nil, nil, nil, errors.New("One of is_producer, is_operator or is_authority must be set!")
+	}
+
+	if (len(routeId) != 0 && len(agencyId) != 0) || (len(routeId) != 0 && len(tripId) != 0) || (len(tripId) != 0 && len(agencyId) != 0) {
+		return nil, nil, nil, nil, errors.New("Only one of route_id, agency_id or trip_id can be set!")
+	}
+
+	if len(agencyId) > 0 {
+		if val, ok := feed.Agencies[prefix+agencyId]; ok {
+			ag = val
+		} else {
+			panic(fmt.Errorf("No agency with id %s found", agencyId))
+		}
+	}
+
+	if len(routeId) > 0 {
+		if val, ok := feed.Routes[prefix+routeId]; ok {
+			route = val
+		} else {
+			panic(fmt.Errorf("No route with id %s found", routeId))
+		}
+	}
+
+	if len(tripId) > 0 {
+		if val, ok := feed.Trips[prefix+tripId]; ok {
+			trip = val
+		} else {
+			panic(fmt.Errorf("No trip with id %s found", tripId))
+		}
+	}
+
+	return a, ag, route, trip, nil
+}
+
 func createAgency(r map[string]string, prefix string, opts *ParseOptions) (ag *gtfs.Agency, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -192,7 +250,7 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 		update = true
 	} else {
 		service = new(gtfs.Service)
-		service.Id = getString("service_id", r, true, true, "")
+		service.Id = prefix + getString("service_id", r, true, true, "")
 		service.Exceptions = make(map[gtfs.Date]int8, 0)
 	}
 

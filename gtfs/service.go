@@ -28,8 +28,15 @@ type Date struct {
 
 // IsActiveOn returns true if the service is active on a particular date
 func (s *Service) IsActiveOn(d Date) bool {
+	exType := s.GetExceptionTypeOn(d)
+	if exType == 1 {
+		return true
+	}
+	if exType == 2 {
+		return false
+	}
 	t := d.GetTime()
-	return (s.Daymap[int(t.Weekday())] && !(t.Before(s.Start_date.GetTime())) && !(t.After(s.End_date.GetTime())) && s.GetExceptionTypeOn(d) < 2) || s.GetExceptionTypeOn(d) == 1
+	return s.Daymap[int(t.Weekday())] && !(t.Before(s.Start_date.GetTime())) && !(t.After(s.End_date.GetTime()))
 }
 
 // GetExceptionTypeOn returns the expection type on a particular day
@@ -48,6 +55,11 @@ func GetGtfsDateFromTime(t time.Time) Date {
 
 // GetOffsettedDate returns a date offsetted by a certain number of days
 func (d Date) GetOffsettedDate(offset int) Date {
+	if (offset == 1 || offset == -1) && d.Day > 1 && d.Day < 27 {
+		// shortcut
+		d.Day += int8(offset)
+		return d
+	}
 	return GetGtfsDateFromTime((d.GetTime().AddDate(0, 0, offset)))
 }
 
@@ -59,10 +71,18 @@ func (s *Service) Equals(b *Service) bool {
 		return true
 	}
 	startA := s.GetFirstDefinedDate()
-	endA := s.GetLastDefinedDate()
+	endB := b.GetLastDefinedDate()
+
+	if startA.GetTime().After(endB.GetTime()) {
+		return false
+	}
 
 	startB := b.GetFirstDefinedDate()
-	endB := b.GetLastDefinedDate()
+	endA := s.GetLastDefinedDate()
+
+	if startB.GetTime().After(endA.GetTime()) {
+		return false
+	}
 
 	if endA.GetTime().Before(endB.GetTime()) {
 		endA = endB
@@ -79,32 +99,6 @@ func (s *Service) Equals(b *Service) bool {
 	}
 
 	return true
-}
-
-// Returns the date intersection of two services
-func (a *Service) Intersection(b *Service) []Date {
-	ret := make([]Date, 0)
-	startA := a.GetFirstDefinedDate()
-	endA := a.GetLastDefinedDate()
-
-	startB := b.GetFirstDefinedDate()
-	endB := b.GetLastDefinedDate()
-
-	if endA.GetTime().After(endB.GetTime()) {
-		endA = endB
-	}
-
-	if startA.GetTime().Before(startB.GetTime()) {
-		startA = startB
-	}
-
-	for d := startA; !d.GetTime().After(endA.GetTime()); d = d.GetOffsettedDate(1) {
-		if a.IsActiveOn(d) && b.IsActiveOn(d) {
-			ret = append(ret, d)
-		}
-	}
-
-	return ret
 }
 
 // GetFirstDefinedDate returns the first date something is defined
@@ -141,6 +135,32 @@ func (s *Service) GetLastDefinedDate() Date {
 	}
 
 	return last
+}
+
+// GetFirstActiveDate returns the first active date of this service
+func (s *Service) GetFirstActiveDate() Date {
+	start := s.GetFirstDefinedDate()
+	end := s.GetLastDefinedDate()
+	for d := start; !d.GetTime().After(end.GetTime()); d = d.GetOffsettedDate(1) {
+		if s.IsActiveOn(d) {
+			return d
+		}
+	}
+
+	return Date{0, 0, 0}
+}
+
+// GetLastActiveDate returns the first active date of this service
+func (s *Service) GetLastActiveDate() Date {
+	start := s.GetFirstDefinedDate()
+	end := s.GetLastDefinedDate()
+	for d := end; !d.GetTime().Before(start.GetTime()); d = d.GetOffsettedDate(-1) {
+		if s.IsActiveOn(d) {
+			return d
+		}
+	}
+
+	return Date{0, 0, 0}
 }
 
 func (d *Service) IsEmpty() bool {
