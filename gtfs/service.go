@@ -147,7 +147,7 @@ func (s *Service) GetFirstActiveDate() Date {
 		}
 	}
 
-	return Date{0, 0, 0}
+	return Date{-1, -1, -1}
 }
 
 // GetLastActiveDate returns the first active date of this service
@@ -160,11 +160,18 @@ func (s *Service) GetLastActiveDate() Date {
 		}
 	}
 
-	return Date{0, 0, 0}
+	return Date{-1, -1, -1}
 }
 
 func (d *Service) IsEmpty() bool {
-	return d.Daymap[0] == false && d.Daymap[1] == false && d.Daymap[2] == false && d.Daymap[3] == false && d.Daymap[4] == false && d.Daymap[5] == false && d.Daymap[6] == false && len(d.Exceptions) == 0
+	return d.Daymap[0] == false &&
+		d.Daymap[1] == false &&
+		d.Daymap[2] == false &&
+		d.Daymap[3] == false &&
+		d.Daymap[4] == false &&
+		d.Daymap[5] == false &&
+		d.Daymap[6] == false &&
+		len(d.Exceptions) == 0
 }
 
 // GetTime constructs a time object from this date, at 12:00:00 noon
