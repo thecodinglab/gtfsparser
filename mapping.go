@@ -323,8 +323,8 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix strin
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), latitude is not in the allowed range [-90, 90].", a.Lat, a.Lon))
 	}
 
-	if a.Has_LatLon && math.Abs(float64(a.Lon)) > 90 {
-		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-90, 90].", a.Lat, a.Lon))
+	if a.Has_LatLon && math.Abs(float64(a.Lon)) > 180 {
+		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-180, 180].", a.Lat, a.Lon))
 	}
 
 	// check for 0,0 coordinates, which are most definitely an error
@@ -524,8 +524,8 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, prefix
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), latitude is not in the allowed range [-90, 90].", lat, lon))
 	}
 
-	if math.Abs(float64(lon)) > 90 {
-		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-90, 90].", lat, lon))
+	if math.Abs(float64(lon)) > 180 {
+		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-180, 180].", lat, lon))
 	}
 
 	// check for 0,0 coordinates, which are most definitely an error
