@@ -318,6 +318,15 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix strin
 		}
 	}
 
+	// check for incorrect coordinates
+	if a.Has_LatLon && math.Abs(float64(a.Lat)) > 90 {
+		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), latitude is not in the allowed range (-90, 90).", a.Lat, a.Lon))
+	}
+
+	if a.Has_LatLon && math.Abs(float64(a.Lon)) > 90 {
+		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range (-90, 90).", a.Lat, a.Lon))
+	}
+
 	// check for 0,0 coordinates, which are most definitely an error
 	if a.Has_LatLon && opts.CheckNullCoordinates && math.Abs(float64(a.Lat)) < 0.0001 && math.Abs(float64(a.Lon)) < 0.0001 {
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
@@ -506,9 +515,27 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, prefix
 		shapes[shapeID] = shape
 	}
 	dist, nulled := getNullableFloat("shape_dist_traveled", r, opts.UseDefValueOnError)
+
+	lat := getFloat("shape_pt_lat", r, true)
+	lon := getFloat("shape_pt_lon", r, true)
+
+	// check for incorrect coordinates
+	if math.Abs(float64(lat)) > 90 {
+		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), latitude is not in the allowed range (-90, 90).", lat, lon))
+	}
+
+	if math.Abs(float64(lon)) > 90 {
+		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range (-90, 90).", lat, lon))
+	}
+
+	// check for 0,0 coordinates, which are most definitely an error
+	if opts.CheckNullCoordinates && math.Abs(float64(lat)) < 0.0001 && math.Abs(float64(lon)) < 0.0001 {
+		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
+	}
+
 	p := gtfs.ShapePoint{
-		Lat:           getFloat("shape_pt_lat", r, true),
-		Lon:           getFloat("shape_pt_lon", r, true),
+		Lat:           lat,
+		Lon:           lon,
 		Sequence:      getInt("shape_pt_sequence", r, true),
 		Dist_traveled: dist,
 		Has_dist:      !nulled,
