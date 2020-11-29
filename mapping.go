@@ -166,7 +166,11 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, prefix s
 			a.Agency = val
 		} else {
 			if opts.UseDefValueOnError {
-				a.Agency = nil
+				if len(agencies) == 1 {
+					a.Agency = nil
+				} else {
+					return nil, errors.New("Agency with id " + getString("agency_id", r, false, false, "") + " not found or erroneous, cannot fall back to no agency as there is more than one agency in agency.txt.")
+				}
 			} else {
 				return nil, errors.New("No agency with id " + getString("agency_id", r, false, false, "") + " found.")
 			}
@@ -190,7 +194,11 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, prefix s
 
 		if c == 1 {
 			a.Agency = agencies[aId]
+		} else {
+			return nil, errors.New("Agency with id " + getString("agency_id", r, false, false, "") + " not found or erroneous, cannot fall back to no agency as there is more than one agency in agency.txt.")
 		}
+	} else {
+		return nil, errors.New("Agency with id " + getString("agency_id", r, false, false, "") + " not found or erroneous, cannot fall back to no agency as there is more than one agency in agency.txt.")
 	}
 
 	a.Short_name = getString("route_short_name", r, true, false, "")
