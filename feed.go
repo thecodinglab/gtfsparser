@@ -643,8 +643,12 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 
 		if e != nil {
 			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
-			_, wasFiltered := geofiltered[stopNotFoundErr.StopId()]
-			if stopNotFound && wasFiltered {
+			wasFiltered := false
+			if stopNotFound {
+				_, wasFiltered = geofiltered[stopNotFoundErr.StopId()]
+			}
+
+			if wasFiltered {
 				continue
 			} else if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedStopTimes++
@@ -795,8 +799,12 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 		t, e := createTransfer(record, feed, prefix)
 		if e != nil {
 			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
-			_, wasFiltered := geofiltered[stopNotFoundErr.StopId()]
-			if stopNotFound && wasFiltered {
+			wasFiltered := false
+			if stopNotFound {
+				_, wasFiltered = geofiltered[stopNotFoundErr.StopId()]
+			}
+
+			if wasFiltered {
 				continue
 			} else if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedTransfers++
@@ -840,8 +848,12 @@ func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[stri
 		}
 		if e != nil {
 			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
-			_, wasFiltered := geofiltered[stopNotFoundErr.StopId()]
-			if stopNotFound && wasFiltered {
+			wasFiltered := false
+			if stopNotFound {
+				_, wasFiltered = geofiltered[stopNotFoundErr.StopId()]
+			}
+
+			if wasFiltered {
 				continue
 			} else if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedPathways++
