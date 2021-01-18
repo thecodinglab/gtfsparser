@@ -18,7 +18,21 @@ import (
 	"strings"
 )
 
-func createAttribution(r map[string]string, feed *Feed, prefix string, opts *ParseOptions) (attr *gtfs.Attribution, ag *gtfs.Agency, route *gtfs.Route, trip *gtfs.Trip, err error) {
+// custom error types for later checking
+type StopNotFoundErr struct {
+	prefix string
+	sid    string
+}
+
+func (e *StopNotFoundErr) Error() string {
+	return "No stop with id " + e.sid + " found."
+}
+
+func (e *StopNotFoundErr) StopId() string {
+	return e.prefix + e.sid
+}
+
+func createAttribution(r map[string]string, feed *Feed, prefix string) (attr *gtfs.Attribution, ag *gtfs.Agency, route *gtfs.Route, trip *gtfs.Trip, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -28,14 +42,14 @@ func createAttribution(r map[string]string, feed *Feed, prefix string, opts *Par
 	a := new(gtfs.Attribution)
 
 	a.Id = prefix + getString("attribution_id", r, false, false, "")
-	a.Organization_name = getString("organization_name", r, true, true, opts.EmptyStringRepl)
-	a.Is_producer = getBool("is_producer", r, false, false, opts.UseDefValueOnError)
-	a.Is_operator = getBool("is_operator", r, false, false, opts.UseDefValueOnError)
-	a.Is_authority = getBool("is_authority", r, false, false, opts.UseDefValueOnError)
+	a.Organization_name = getString("organization_name", r, true, true, feed.opts.EmptyStringRepl)
+	a.Is_producer = getBool("is_producer", r, false, false, feed.opts.UseDefValueOnError, feed)
+	a.Is_operator = getBool("is_operator", r, false, false, feed.opts.UseDefValueOnError, feed)
+	a.Is_authority = getBool("is_authority", r, false, false, feed.opts.UseDefValueOnError, feed)
 
-	a.Url = getURL("attribution_url", r, false, opts.UseDefValueOnError)
-	a.Email = getMail("attribution_email", r, false, opts.UseDefValueOnError)
-	a.Phone = getString("attribution_phone", r, false, false, opts.EmptyStringRepl)
+	a.Url = getURL("attribution_url", r, false, feed.opts.UseDefValueOnError, feed)
+	a.Email = getMail("attribution_email", r, false, feed.opts.UseDefValueOnError, feed)
+	a.Phone = getString("attribution_phone", r, false, false, feed.opts.EmptyStringRepl)
 
 	routeId := getString("route_id", r, false, false, "")
 	agencyId := getString("agency_id", r, false, false, "")
@@ -76,7 +90,7 @@ func createAttribution(r map[string]string, feed *Feed, prefix string, opts *Par
 	return a, ag, route, trip, nil
 }
 
-func createAgency(r map[string]string, prefix string, opts *ParseOptions) (ag *gtfs.Agency, err error) {
+func createAgency(r map[string]string, feed *Feed, prefix string) (ag *gtfs.Agency, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -85,18 +99,18 @@ func createAgency(r map[string]string, prefix string, opts *ParseOptions) (ag *g
 	a := new(gtfs.Agency)
 
 	a.Id = prefix + getString("agency_id", r, false, false, "")
-	a.Name = getString("agency_name", r, true, true, opts.EmptyStringRepl)
-	a.Url = getURL("agency_url", r, true, opts.UseDefValueOnError)
-	a.Timezone = getTimezone("agency_timezone", r, true, opts.UseDefValueOnError)
-	a.Lang = getIsoLangCode("agency_lang", r, false, opts.UseDefValueOnError)
+	a.Name = getString("agency_name", r, true, true, feed.opts.EmptyStringRepl)
+	a.Url = getURL("agency_url", r, true, feed.opts.UseDefValueOnError, feed)
+	a.Timezone = getTimezone("agency_timezone", r, true, feed.opts.UseDefValueOnError, feed)
+	a.Lang = getIsoLangCode("agency_lang", r, false, feed.opts.UseDefValueOnError, feed)
 	a.Phone = getString("agency_phone", r, false, false, "")
-	a.Fare_url = getURL("agency_fare_url", r, false, opts.UseDefValueOnError)
-	a.Email = getMail("agency_email", r, false, opts.UseDefValueOnError)
+	a.Fare_url = getURL("agency_fare_url", r, false, feed.opts.UseDefValueOnError, feed)
+	a.Email = getMail("agency_email", r, false, feed.opts.UseDefValueOnError, feed)
 
 	return a, nil
 }
 
-func createFeedInfo(r map[string]string, opts *ParseOptions) (fi *gtfs.FeedInfo, err error) {
+func createFeedInfo(r map[string]string, feed *Feed) (fi *gtfs.FeedInfo, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -104,19 +118,19 @@ func createFeedInfo(r map[string]string, opts *ParseOptions) (fi *gtfs.FeedInfo,
 	}()
 	f := new(gtfs.FeedInfo)
 
-	f.Publisher_name = getString("feed_publisher_name", r, true, true, opts.EmptyStringRepl)
-	f.Publisher_url = getURL("feed_publisher_url", r, true, opts.UseDefValueOnError)
-	f.Lang = getString("feed_lang", r, true, true, opts.EmptyStringRepl)
-	f.Start_date = getDate("feed_start_date", r, false, opts.UseDefValueOnError)
-	f.End_date = getDate("feed_end_date", r, false, opts.UseDefValueOnError)
+	f.Publisher_name = getString("feed_publisher_name", r, true, true, feed.opts.EmptyStringRepl)
+	f.Publisher_url = getURL("feed_publisher_url", r, true, feed.opts.UseDefValueOnError, feed)
+	f.Lang = getString("feed_lang", r, true, true, feed.opts.EmptyStringRepl)
+	f.Start_date = getDate("feed_start_date", r, false, feed.opts.UseDefValueOnError, feed)
+	f.End_date = getDate("feed_end_date", r, false, feed.opts.UseDefValueOnError, feed)
 	f.Version = getString("feed_version", r, false, false, "")
-	f.Contact_email = getMail("feed_contact_email", r, false, opts.UseDefValueOnError)
-	f.Contact_url = getURL("feed_contact_url", r, false, opts.UseDefValueOnError)
+	f.Contact_email = getMail("feed_contact_email", r, false, feed.opts.UseDefValueOnError, feed)
+	f.Contact_url = getURL("feed_contact_url", r, false, feed.opts.UseDefValueOnError, feed)
 
 	return f, nil
 }
 
-func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, prefix string, opts *ParseOptions) (err error) {
+func createFrequency(r map[string]string, feed *Feed, prefix string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -127,13 +141,13 @@ func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, prefix st
 
 	tripid := prefix + getString("trip_id", r, true, true, "")
 
-	if val, ok := trips[tripid]; ok {
+	if val, ok := feed.Trips[tripid]; ok {
 		trip = val
 	} else {
 		panic(errors.New("No trip with id " + r["trip_id"] + " found."))
 	}
 
-	a.Exact_times = getBool("exact_times", r, false, false, opts.UseDefValueOnError)
+	a.Exact_times = getBool("exact_times", r, false, false, feed.opts.UseDefValueOnError, feed)
 	a.Start_time = getTime("start_time", r)
 	a.End_time = getTime("end_time", r)
 
@@ -143,14 +157,14 @@ func createFrequency(r map[string]string, trips map[string]*gtfs.Trip, prefix st
 
 	a.Headway_secs = getPositiveInt("headway_secs", r, true)
 
-	if !opts.DryRun {
+	if !feed.opts.DryRun {
 		trip.Frequencies = append(trip.Frequencies, a)
 	}
 
 	return nil
 }
 
-func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, prefix string, opts *ParseOptions) (route *gtfs.Route, err error) {
+func createRoute(r map[string]string, feed *Feed, prefix string) (route *gtfs.Route, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -162,11 +176,11 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, prefix s
 	var aID = prefix + getString("agency_id", r, false, false, "")
 
 	if len(aID) != len(prefix) {
-		if val, ok := agencies[aID]; ok {
+		if val, ok := feed.Agencies[aID]; ok {
 			a.Agency = val
 		} else {
-			if opts.UseDefValueOnError {
-				if len(agencies) == 1 {
+			if feed.opts.UseDefValueOnError {
+				if len(feed.Agencies) == 1 {
 					a.Agency = nil
 				} else {
 					return nil, errors.New("Agency with id " + getString("agency_id", r, false, false, "") + " not found or erroneous, cannot fall back to no agency as there is more than one agency in agency.txt.")
@@ -175,9 +189,9 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, prefix s
 				return nil, errors.New("No agency with id " + getString("agency_id", r, false, false, "") + " found.")
 			}
 		}
-	} else if len(prefix) == 0 && len(agencies) == 1 {
+	} else if len(prefix) == 0 && len(feed.Agencies) == 1 {
 		// if no agency is specified and we only have one agency in agencies.txt, use it here
-		for _, ag := range agencies {
+		for _, ag := range feed.Agencies {
 			a.Agency = ag
 			break
 		}
@@ -185,7 +199,7 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, prefix s
 		c := 0
 		aId := ""
 		// if no agency is specified and we only have one agency in agencies.txt, use it here
-		for _, ag := range agencies {
+		for _, ag := range feed.Agencies {
 			if strings.HasPrefix(ag.Id, prefix) {
 				aId = ag.Id
 				c += 1
@@ -193,7 +207,7 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, prefix s
 		}
 
 		if c == 1 {
-			a.Agency = agencies[aId]
+			a.Agency = feed.Agencies[aId]
 		} else {
 			return nil, errors.New("No agency given for route " + a.Id + ", an agency is required as there is more than one agency in agency.txt.")
 		}
@@ -210,15 +224,15 @@ func createRoute(r map[string]string, agencies map[string]*gtfs.Agency, prefix s
 
 	a.Desc = getString("route_desc", r, false, false, "")
 	a.Type = int16(getRangeInt("route_type", r, true, 0, 1702)) // allow extended route types
-	a.Url = getURL("route_url", r, false, opts.UseDefValueOnError)
-	a.Color = getColor("route_color", r, false, "ffffff", opts.UseDefValueOnError)
-	a.Text_color = getColor("route_text_color", r, false, "000000", opts.UseDefValueOnError)
-	a.Sort_order = getPositiveIntWithDefault("route_sort_order", r, -1, opts.UseDefValueOnError)
+	a.Url = getURL("route_url", r, false, feed.opts.UseDefValueOnError, feed)
+	a.Color = getColor("route_color", r, false, "ffffff", feed.opts.UseDefValueOnError, feed)
+	a.Text_color = getColor("route_text_color", r, false, "000000", feed.opts.UseDefValueOnError, feed)
+	a.Sort_order = getPositiveIntWithDefault("route_sort_order", r, -1, feed.opts.UseDefValueOnError, feed)
 
 	return a, nil
 }
 
-func createServiceFromCalendar(r map[string]string, services map[string]*gtfs.Service, prefix string, opts *ParseOptions) (s *gtfs.Service, err error) {
+func createServiceFromCalendar(r map[string]string, feed *Feed, prefix string) (s *gtfs.Service, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -230,20 +244,20 @@ func createServiceFromCalendar(r map[string]string, services map[string]*gtfs.Se
 	service.Exceptions = make(map[gtfs.Date]int8, 0)
 
 	// fill daybitmap
-	service.Daymap[1] = getBool("monday", r, true, false, opts.UseDefValueOnError)
-	service.Daymap[2] = getBool("tuesday", r, true, false, opts.UseDefValueOnError)
-	service.Daymap[3] = getBool("wednesday", r, true, false, opts.UseDefValueOnError)
-	service.Daymap[4] = getBool("thursday", r, true, false, opts.UseDefValueOnError)
-	service.Daymap[5] = getBool("friday", r, true, false, opts.UseDefValueOnError)
-	service.Daymap[6] = getBool("saturday", r, true, false, opts.UseDefValueOnError)
-	service.Daymap[0] = getBool("sunday", r, true, false, opts.UseDefValueOnError)
-	service.Start_date = getDate("start_date", r, true, false)
-	service.End_date = getDate("end_date", r, true, false)
+	service.Daymap[1] = getBool("monday", r, true, false, feed.opts.UseDefValueOnError, feed)
+	service.Daymap[2] = getBool("tuesday", r, true, false, feed.opts.UseDefValueOnError, feed)
+	service.Daymap[3] = getBool("wednesday", r, true, false, feed.opts.UseDefValueOnError, feed)
+	service.Daymap[4] = getBool("thursday", r, true, false, feed.opts.UseDefValueOnError, feed)
+	service.Daymap[5] = getBool("friday", r, true, false, feed.opts.UseDefValueOnError, feed)
+	service.Daymap[6] = getBool("saturday", r, true, false, feed.opts.UseDefValueOnError, feed)
+	service.Daymap[0] = getBool("sunday", r, true, false, feed.opts.UseDefValueOnError, feed)
+	service.Start_date = getDate("start_date", r, true, false, feed)
+	service.End_date = getDate("end_date", r, true, false, feed)
 
 	return service, nil
 }
 
-func createServiceFromCalendarDates(r map[string]string, services map[string]*gtfs.Service, prefix string) (s *gtfs.Service, err error) {
+func createServiceFromCalendarDates(r map[string]string, feed *Feed, prefix string) (s *gtfs.Service, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -253,7 +267,7 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 	var service *gtfs.Service
 
 	// first, check if the service already exists
-	if val, ok := services[prefix+getString("service_id", r, true, true, "")]; ok {
+	if val, ok := feed.Services[prefix+getString("service_id", r, true, true, "")]; ok {
 		service = val
 		update = true
 	} else {
@@ -264,7 +278,7 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 
 	// create exception
 	t := getRangeInt("exception_type", r, true, 1, 2)
-	date := getDate("date", r, true, false)
+	date := getDate("date", r, true, false, feed)
 
 	// may be nil during dry run
 	if service != nil {
@@ -280,7 +294,7 @@ func createServiceFromCalendarDates(r map[string]string, services map[string]*gt
 	return service, nil
 }
 
-func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix string, opts *ParseOptions) (s *gtfs.Stop, pid string, err error) {
+func createStop(r map[string]string, feed *Feed, prefix string) (s *gtfs.Stop, pid string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -291,8 +305,8 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix strin
 
 	a.Id = prefix + getString("stop_id", r, true, true, "")
 	a.Code = getString("stop_code", r, false, false, "")
-	a.Location_type = int8(getRangeIntWithDefault("location_type", r, 0, 4, 0, opts.UseDefValueOnError))
-	a.Name = getString("stop_name", r, a.Location_type < 3, a.Location_type < 3, opts.EmptyStringRepl)
+	a.Location_type = int8(getRangeIntWithDefault("location_type", r, 0, 4, 0, feed.opts.UseDefValueOnError, feed))
+	a.Name = getString("stop_name", r, a.Location_type < 3, a.Location_type < 3, feed.opts.EmptyStringRepl)
 	a.Desc = getString("stop_desc", r, false, false, "")
 
 	if a.Location_type < 3 {
@@ -300,26 +314,30 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix strin
 		a.Lon = getFloat("stop_lon", r, true)
 		a.Has_LatLon = true
 	} else {
-		lat, latNulled := getNullableFloat("stop_lat", r, opts.UseDefValueOnError)
-		lon, lonNulled := getNullableFloat("stop_lon", r, opts.UseDefValueOnError)
+		lat, latNulled := getNullableFloat("stop_lat", r, feed.opts.UseDefValueOnError, feed)
+		lon, lonNulled := getNullableFloat("stop_lon", r, feed.opts.UseDefValueOnError, feed)
 
 		if !latNulled && !lonNulled {
 			a.Lat = lat
 			a.Lon = lon
 			a.Has_LatLon = true
 		} else if !latNulled {
-			if opts.UseDefValueOnError {
+			locErr := fmt.Errorf("stop_lat and stop_lon are optional for location_type=%d, but only stop_lon was ommitted here, and stop_lat was defined.", a.Location_type)
+			if feed.opts.UseDefValueOnError {
+				feed.warn(locErr)
 				a.Lat = 0
 				a.Has_LatLon = false
 			} else {
-				panic(fmt.Errorf("stop_lat and stop_lon are optional for location_type=%d, but only stop_lon was ommitted here, and stop_lat was defined.", a.Location_type))
+				panic(locErr)
 			}
 		} else if !lonNulled {
-			if opts.UseDefValueOnError {
+			locErr := fmt.Errorf("stop_lat and stop_lon are optional for location_type=%d, but only stop_lat was ommitted here, and stop_lon was defined.", a.Location_type)
+			if feed.opts.UseDefValueOnError {
+				feed.warn(locErr)
 				a.Lon = 0
 				a.Has_LatLon = false
 			} else {
-				panic(fmt.Errorf("stop_lat and stop_lon are optional for location_type=%d, but only stop_lat was ommitted here, and stop_lon was defined.", a.Location_type))
+				panic(locErr)
 			}
 		} else {
 			a.Has_LatLon = false
@@ -336,7 +354,7 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix strin
 	}
 
 	// check for 0,0 coordinates, which are most definitely an error
-	if a.Has_LatLon && opts.CheckNullCoordinates && math.Abs(float64(a.Lat)) < 0.0001 && math.Abs(float64(a.Lon)) < 0.0001 {
+	if a.Has_LatLon && feed.opts.CheckNullCoordinates && math.Abs(float64(a.Lat)) < 0.0001 && math.Abs(float64(a.Lon)) < 0.0001 {
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
 	}
 
@@ -344,7 +362,7 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix strin
 	if len(a.Zone_id) == len(prefix) {
 		a.Zone_id = ""
 	}
-	a.Url = getURL("stop_url", r, false, opts.UseDefValueOnError)
+	a.Url = getURL("stop_url", r, false, feed.opts.UseDefValueOnError, feed)
 
 	// will be filled later on
 	a.Parent_station = nil
@@ -359,14 +377,14 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix strin
 		}
 	}
 
-	a.Timezone = getTimezone("stop_timezone", r, false, opts.UseDefValueOnError)
-	a.Wheelchair_boarding = int8(getRangeIntWithDefault("wheelchair_boarding", r, 0, 2, 0, opts.UseDefValueOnError))
+	a.Timezone = getTimezone("stop_timezone", r, false, feed.opts.UseDefValueOnError, feed)
+	a.Wheelchair_boarding = int8(getRangeIntWithDefault("wheelchair_boarding", r, 0, 2, 0, feed.opts.UseDefValueOnError, feed))
 	a.Level = nil
 
 	levelId := prefix + getString("level_id", r, false, false, "")
 
 	if len(levelId) > len(prefix) {
-		if val, ok := levels[levelId]; ok {
+		if val, ok := feed.Levels[levelId]; ok {
 			a.Level = val
 		} else {
 			panic(errors.New("No level with id " + getString("level_id", r, false, true, "") + " found."))
@@ -378,7 +396,7 @@ func createStop(r map[string]string, levels map[string]*gtfs.Level, prefix strin
 	return a, parentId, nil
 }
 
-func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[string]*gtfs.Trip, prefix string, opts *ParseOptions) (err error) {
+func createStopTime(r map[string]string, feed *Feed, prefix string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -387,16 +405,16 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	a := gtfs.StopTime{}
 	var trip *gtfs.Trip
 
-	if val, ok := trips[prefix+getString("trip_id", r, true, true, "")]; ok {
+	if val, ok := feed.Trips[prefix+getString("trip_id", r, true, true, "")]; ok {
 		trip = val
 	} else {
 		panic(errors.New("No trip with id " + getString("trip_id", r, true, true, "") + " found."))
 	}
 
-	if val, ok := stops[prefix+getString("stop_id", r, true, true, "")]; ok {
+	if val, ok := feed.Stops[prefix+getString("stop_id", r, true, true, "")]; ok {
 		a.Stop = val
 	} else {
-		panic(errors.New("No stop with id " + getString("stop_id", r, true, true, "") + " found."))
+		panic(&StopNotFoundErr{prefix, getString("stop_id", r, true, true, "")})
 	}
 
 	if a.Stop.Location_type != 0 {
@@ -407,7 +425,7 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	a.Departure_time = getTime("departure_time", r)
 
 	if a.Arrival_time.Empty() && !a.Departure_time.Empty() {
-		if opts.UseDefValueOnError {
+		if feed.opts.UseDefValueOnError {
 			a.Arrival_time = a.Departure_time
 		} else {
 			panic(errors.New("Missing arrival time for " + getString("stop_id", r, true, true, "") + "."))
@@ -415,7 +433,7 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	}
 
 	if !a.Arrival_time.Empty() && a.Departure_time.Empty() {
-		if opts.UseDefValueOnError {
+		if feed.opts.UseDefValueOnError {
 			a.Departure_time = a.Arrival_time
 		} else {
 			panic(errors.New("Missing departure time for " + getString("stop_id", r, true, true, "") + "."))
@@ -430,31 +448,37 @@ func createStopTime(r map[string]string, stops map[string]*gtfs.Stop, trips map[
 	a.Headsign = getString("stop_headsign", r, false, false, "")
 	a.Pickup_type = int8(getRangeInt("pickup_type", r, false, 0, 3))
 	a.Drop_off_type = int8(getRangeInt("drop_off_type", r, false, 0, 3))
-	dist, nulled := getNullableFloat("shape_dist_traveled", r, opts.UseDefValueOnError)
+	dist, nulled := getNullableFloat("shape_dist_traveled", r, feed.opts.UseDefValueOnError, feed)
 	a.Shape_dist_traveled = dist
 	a.Has_dist = !nulled
-	a.Timepoint = getBool("timepoint", r, false, !a.Arrival_time.Empty() && !a.Departure_time.Empty(), opts.UseDefValueOnError)
+	a.Timepoint = getBool("timepoint", r, false, !a.Arrival_time.Empty() && !a.Departure_time.Empty(), feed.opts.UseDefValueOnError, feed)
 
 	if (a.Arrival_time.Empty() || a.Departure_time.Empty()) && a.Timepoint {
-		if opts.UseDefValueOnError {
+		locErr := errors.New("Stops with timepoint=1 cannot have empty arrival or departure time")
+		if feed.opts.UseDefValueOnError {
 			a.Timepoint = false
-		} else if !opts.DropErroneous {
-			panic(errors.New("Stops with timepoint=1 cannot have empty arrival or departure time"))
+			feed.warn(locErr)
+		} else if !feed.opts.DropErroneous {
+			panic(locErr)
 		}
+		feed.warn(locErr)
 	}
 
 	if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
 		trip.StopTimes = append(trip.StopTimes, a)
-	} else if !opts.DropErroneous {
-		panic(errors.New("Stop time sequence collision. Sequence has to increase along trip"))
+	} else {
+		locErr := errors.New("Stop time sequence collision. Sequence has to increase along trip")
+		if !feed.opts.DropErroneous {
+			panic(locErr)
+		} else {
+			feed.warn(locErr)
+		}
 	}
 
 	return nil
 }
 
-func createTrip(r map[string]string, routes map[string]*gtfs.Route,
-	services map[string]*gtfs.Service,
-	shapes map[string]*gtfs.Shape, prefix string, opts *ParseOptions) (t *gtfs.Trip, err error) {
+func createTrip(r map[string]string, feed *Feed, prefix string) (t *gtfs.Trip, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -463,13 +487,13 @@ func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 	a := new(gtfs.Trip)
 	a.Id = prefix + getString("trip_id", r, true, true, "")
 
-	if val, ok := routes[prefix+getString("route_id", r, true, true, "")]; ok {
+	if val, ok := feed.Routes[prefix+getString("route_id", r, true, true, "")]; ok {
 		a.Route = val
 	} else {
 		panic(fmt.Errorf("No route with id %s found", getString("route_id", r, true, true, "")))
 	}
 
-	if val, ok := services[prefix+getString("service_id", r, true, true, "")]; ok {
+	if val, ok := feed.Services[prefix+getString("service_id", r, true, true, "")]; ok {
 		a.Service = val
 	} else {
 		panic(fmt.Errorf("No service with id %s found", getString("service_id", r, true, true, "")))
@@ -486,24 +510,26 @@ func createTrip(r map[string]string, routes map[string]*gtfs.Route,
 	shapeID := prefix + getString("shape_id", r, false, false, "")
 
 	if len(shapeID) > len(prefix) {
-		if val, ok := shapes[shapeID]; ok {
+		if val, ok := feed.Shapes[shapeID]; ok {
 			a.Shape = val
 		} else {
-			if opts.UseDefValueOnError {
+			locErr := fmt.Errorf("No shape with id %s found", shapeID)
+			if feed.opts.UseDefValueOnError {
+				feed.warn(locErr)
 				a.Shape = nil
 			} else {
-				return nil, fmt.Errorf("No shape with id %s found", shapeID)
+				return nil, locErr
 			}
 		}
 	}
 
-	a.Wheelchair_accessible = int8(getRangeIntWithDefault("wheelchair_accessible", r, 0, 2, 0, opts.UseDefValueOnError))
-	a.Bikes_allowed = int8(getRangeIntWithDefault("bikes_allowed", r, 0, 2, 0, opts.UseDefValueOnError))
+	a.Wheelchair_accessible = int8(getRangeIntWithDefault("wheelchair_accessible", r, 0, 2, 0, feed.opts.UseDefValueOnError, feed))
+	a.Bikes_allowed = int8(getRangeIntWithDefault("bikes_allowed", r, 0, 2, 0, feed.opts.UseDefValueOnError, feed))
 
 	return a, nil
 }
 
-func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, prefix string, opts *ParseOptions) (err error) {
+func createShapePoint(r map[string]string, feed *Feed, prefix string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -513,16 +539,16 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, prefix
 	shapeID := prefix + getString("shape_id", r, true, true, "")
 	var shape *gtfs.Shape
 
-	if val, ok := shapes[shapeID]; ok {
+	if val, ok := feed.Shapes[shapeID]; ok {
 		shape = val
 	} else {
 		// create new shape
 		shape = new(gtfs.Shape)
 		shape.Id = shapeID
 		// push it onto the shape map
-		shapes[shapeID] = shape
+		feed.Shapes[shapeID] = shape
 	}
-	dist, nulled := getNullableFloat("shape_dist_traveled", r, opts.UseDefValueOnError)
+	dist, nulled := getNullableFloat("shape_dist_traveled", r, feed.opts.UseDefValueOnError, feed)
 
 	lat := getFloat("shape_pt_lat", r, true)
 	lon := getFloat("shape_pt_lon", r, true)
@@ -537,7 +563,7 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, prefix
 	}
 
 	// check for 0,0 coordinates, which are most definitely an error
-	if opts.CheckNullCoordinates && math.Abs(float64(lat)) < 0.0001 && math.Abs(float64(lon)) < 0.0001 {
+	if feed.opts.CheckNullCoordinates && math.Abs(float64(lat)) < 0.0001 && math.Abs(float64(lon)) < 0.0001 {
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
 	}
 
@@ -551,14 +577,19 @@ func createShapePoint(r map[string]string, shapes map[string]*gtfs.Shape, prefix
 
 	if checkShapePointOrdering(p.Sequence, shape.Points) {
 		shape.Points = append(shape.Points, p)
-	} else if !opts.DropErroneous {
-		panic(errors.New("Shape point sequence collision. Sequence has to increase along shape"))
+	} else {
+		locErr := errors.New("Shape point sequence collision. Sequence has to increase along shape")
+		if !feed.opts.DropErroneous {
+			panic(locErr)
+		} else {
+			feed.warn(locErr)
+		}
 	}
 
 	return nil
 }
 
-func createFareAttribute(r map[string]string, agencies map[string]*gtfs.Agency, prefix string, opts *ParseOptions) (fa *gtfs.FareAttribute, err error) {
+func createFareAttribute(r map[string]string, feed *Feed, prefix string) (fa *gtfs.FareAttribute, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -569,35 +600,35 @@ func createFareAttribute(r map[string]string, agencies map[string]*gtfs.Agency, 
 
 	a.Id = prefix + getString("fare_id", r, true, true, "")
 	a.Price = getString("price", r, false, false, "")
-	if opts.UseDefValueOnError {
+	if feed.opts.UseDefValueOnError {
 		a.Currency_type = getString("currency_type", r, true, true, "XXX")
 	} else {
 		a.Currency_type = getString("currency_type", r, true, true, "")
 	}
 	a.Payment_method = getRangeInt("payment_method", r, false, 0, 1)
-	a.Transfers = getRangeIntWithDefault("transfers", r, 0, 2, -1, opts.UseDefValueOnError)
+	a.Transfers = getRangeIntWithDefault("transfers", r, 0, 2, -1, feed.opts.UseDefValueOnError, feed)
 	a.Transfer_duration = getInt("transfer_duration", r, false)
 
 	aID := prefix + getString("agency_id", r, false, false, "")
 
 	if len(aID) != len(prefix) {
-		if val, ok := agencies[aID]; ok {
+		if val, ok := feed.Agencies[aID]; ok {
 			a.Agency = val
 		} else {
-			if opts.UseDefValueOnError {
+			if feed.opts.UseDefValueOnError {
 				a.Agency = nil
 			} else {
 				return nil, errors.New("No agency with id " + getString("agency_id", r, false, false, "") + " found.")
 			}
 		}
-	} else if len(agencies) > 1 {
+	} else if len(feed.Agencies) > 1 {
 		return nil, errors.New("Expected a non-empty value for 'agency_id', as there are multiple agencies defined in agency.txt.")
 	}
 
 	return a, nil
 }
 
-func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAttribute, routes map[string]*gtfs.Route, prefix string) (err error) {
+func createFareRule(r map[string]string, feed *Feed, prefix string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -610,7 +641,7 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 	fareid = prefix + getString("fare_id", r, true, true, "")
 
 	// first, check if the service already exists
-	if val, ok := fareattributes[fareid]; ok {
+	if val, ok := feed.FareAttributes[fareid]; ok {
 		fareattr = val
 	} else {
 		panic(fmt.Errorf("No fare attribute with id %s found", fareid))
@@ -622,7 +653,7 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 	routeID := prefix + getString("route_id", r, false, false, "")
 
 	if len(routeID) > len(prefix) {
-		if val, ok := routes[routeID]; ok {
+		if val, ok := feed.Routes[routeID]; ok {
 			rule.Route = val
 		} else {
 			panic(fmt.Errorf("No route with id %s found", routeID))
@@ -638,7 +669,7 @@ func createFareRule(r map[string]string, fareattributes map[string]*gtfs.FareAtt
 	return nil
 }
 
-func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, prefix string, opts *ParseOptions) (t *gtfs.Transfer, err error) {
+func createTransfer(r map[string]string, feed *Feed, prefix string) (t *gtfs.Transfer, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -647,25 +678,25 @@ func createTransfer(r map[string]string, stops map[string]*gtfs.Stop, prefix str
 
 	a := new(gtfs.Transfer)
 
-	if val, ok := stops[prefix+getString("from_stop_id", r, true, true, "")]; ok {
+	if val, ok := feed.Stops[prefix+getString("from_stop_id", r, true, true, "")]; ok {
 		a.From_stop = val
 	} else {
-		panic(errors.New("No stop with id " + getString("from_stop_id", r, true, true, "") + " found."))
+		panic(&StopNotFoundErr{prefix, getString("from_stop_id", r, true, true, "")})
 	}
 
-	if val, ok := stops[prefix+getString("to_stop_id", r, true, true, "")]; ok {
+	if val, ok := feed.Stops[prefix+getString("to_stop_id", r, true, true, "")]; ok {
 		a.To_stop = val
 	} else {
-		panic(errors.New("No stop with id " + getString("to_stop_id", r, true, true, "") + " found."))
+		panic(&StopNotFoundErr{prefix, getString("to_stop_id", r, true, true, "")})
 	}
 
 	a.Transfer_type = getRangeInt("transfer_type", r, false, 0, 3)
-	a.Min_transfer_time = getPositiveIntWithDefault("min_transfer_time", r, -1, opts.UseDefValueOnError)
+	a.Min_transfer_time = getPositiveIntWithDefault("min_transfer_time", r, -1, feed.opts.UseDefValueOnError, feed)
 
 	return a, nil
 }
 
-func createPathway(r map[string]string, stops map[string]*gtfs.Stop, prefix string, opts *ParseOptions) (t *gtfs.Pathway, err error) {
+func createPathway(r map[string]string, feed *Feed, prefix string) (t *gtfs.Pathway, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -676,37 +707,37 @@ func createPathway(r map[string]string, stops map[string]*gtfs.Stop, prefix stri
 
 	a.Id = prefix + getString("pathway_id", r, true, true, "")
 
-	if val, ok := stops[prefix+getString("from_stop_id", r, true, true, "")]; ok {
+	if val, ok := feed.Stops[prefix+getString("from_stop_id", r, true, true, "")]; ok {
 		a.From_stop = val
 		if a.From_stop.Location_type == 1 {
 			panic(errors.New("Stop for 'from_stop_id' with id " + getString("from_stop_id", r, true, true, "") + " has location_type=1 (Station). Only stops/platforms (location_type=0), entrances/exits (location_type=2), generic nodes (location_type=3) or boarding areas (location_type=4) are allowed here."))
 		}
 	} else {
-		panic(errors.New("No stop with id " + getString("from_stop_id", r, true, true, "") + " found."))
+		panic(&StopNotFoundErr{prefix, getString("from_stop_id", r, true, true, "")})
 	}
 
-	if val, ok := stops[prefix+getString("to_stop_id", r, true, true, "")]; ok {
+	if val, ok := feed.Stops[prefix+getString("to_stop_id", r, true, true, "")]; ok {
 		a.To_stop = val
 		if a.To_stop.Location_type == 1 {
 			panic(errors.New("Stop for 'to_stop_id' with id " + getString("to_stop_id", r, true, true, "") + " has location_type=1 (Station). Only stops/platforms (location_type=0), entrances/exits (location_type=2), generic nodes (location_type=3) or boarding areas (location_type=4) are allowed here."))
 		}
 	} else {
-		panic(errors.New("No stop with id " + getString("to_stop_id", r, true, true, "") + " found."))
+		panic(&StopNotFoundErr{prefix, getString("to_stop_id", r, true, true, "")})
 	}
 
 	a.Mode = uint8(getRangeInt("pathway_mode", r, true, 1, 7))
-	a.Is_bidirectional = getBool("is_bidirectional", r, true, false, opts.UseDefValueOnError)
+	a.Is_bidirectional = getBool("is_bidirectional", r, true, false, feed.opts.UseDefValueOnError, feed)
 
-	length, lenNulled := getNullableFloat("length", r, opts.UseDefValueOnError)
+	length, lenNulled := getNullableFloat("length", r, feed.opts.UseDefValueOnError, feed)
 	a.Length = length
 	a.Has_length = !lenNulled
 
-	a.Traversal_time = int(getPositiveIntWithDefault("traversal_time", r, -1, opts.UseDefValueOnError))
+	a.Traversal_time = int(getPositiveIntWithDefault("traversal_time", r, -1, feed.opts.UseDefValueOnError, feed))
 
-	a.Stair_count = getIntWithDefault("stair_count", r, 0, opts.UseDefValueOnError)
-	a.Max_slope, _ = getNullableFloat("max_slope", r, opts.UseDefValueOnError)
+	a.Stair_count = getIntWithDefault("stair_count", r, 0, feed.opts.UseDefValueOnError, feed)
+	a.Max_slope, _ = getNullableFloat("max_slope", r, feed.opts.UseDefValueOnError, feed)
 
-	width, widthNulled := getNullablePositiveFloat("min_width", r, opts.UseDefValueOnError)
+	width, widthNulled := getNullablePositiveFloat("min_width", r, feed.opts.UseDefValueOnError, feed)
 	a.Min_width = width
 	a.Has_min_width = !widthNulled
 
@@ -716,7 +747,7 @@ func createPathway(r map[string]string, stops map[string]*gtfs.Stop, prefix stri
 	return a, nil
 }
 
-func createLevel(r map[string]string, idprefix string, opts *ParseOptions) (t *gtfs.Level, err error) {
+func createLevel(r map[string]string, feed *Feed, idprefix string) (t *gtfs.Level, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -726,7 +757,7 @@ func createLevel(r map[string]string, idprefix string, opts *ParseOptions) (t *g
 	a := new(gtfs.Level)
 
 	a.Id = idprefix + getString("level_id", r, true, true, "")
-	a.Index, _ = getNullableFloat("level_index", r, opts.UseDefValueOnError)
+	a.Index, _ = getNullableFloat("level_index", r, feed.opts.UseDefValueOnError, feed)
 	a.Name = getString("level_name", r, false, false, "")
 
 	return a, nil
@@ -750,13 +781,17 @@ func getString(name string, r map[string]string, req bool, nonempty bool, emptyr
 	return ""
 }
 
-func getURL(name string, r map[string]string, req bool, ignErrs bool) *url.URL {
+func getURL(name string, r map[string]string, req bool, ignErrs bool, feed *Feed) *url.URL {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		u, e := url.ParseRequestURI(strings.TrimSpace(val))
-		if e != nil && (req || !ignErrs) {
-			panic(fmt.Errorf("'%s' is not a valid url", errFldPrep(val)))
-		} else if e != nil {
-			return nil
+		if e != nil {
+			locErr := fmt.Errorf("'%s' is not a valid url", errFldPrep(val))
+			if req || !ignErrs {
+				panic(locErr)
+			} else {
+				feed.warn(locErr)
+				return nil
+			}
 		}
 		return u
 	} else if req {
@@ -765,13 +800,17 @@ func getURL(name string, r map[string]string, req bool, ignErrs bool) *url.URL {
 	return nil
 }
 
-func getMail(name string, r map[string]string, req bool, ignErrs bool) *mail.Address {
+func getMail(name string, r map[string]string, req bool, ignErrs bool, feed *Feed) *mail.Address {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		u, e := mail.ParseAddress(strings.TrimSpace(val))
-		if e != nil && (req || !ignErrs) {
-			panic(fmt.Errorf("'%s' is not a valid email address", errFldPrep(val)))
-		} else if e != nil {
-			return nil
+		if e != nil {
+			locErr := fmt.Errorf("'%s' is not a valid email address", errFldPrep(val))
+			if req || !ignErrs {
+				panic(locErr)
+			} else {
+				feed.warn(locErr)
+				return nil
+			}
 		}
 		return u
 	} else if req {
@@ -780,12 +819,13 @@ func getMail(name string, r map[string]string, req bool, ignErrs bool) *mail.Add
 	return nil
 }
 
-func getTimezone(name string, r map[string]string, req bool, ignErrs bool) gtfs.Timezone {
+func getTimezone(name string, r map[string]string, req bool, ignErrs bool, feed *Feed) gtfs.Timezone {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		tz, e := gtfs.NewTimezone(strings.TrimSpace(val))
 		if e != nil && (req || !ignErrs) {
 			panic(e)
 		} else if e != nil {
+			feed.warn(e)
 			return tz
 		}
 		return tz
@@ -796,12 +836,13 @@ func getTimezone(name string, r map[string]string, req bool, ignErrs bool) gtfs.
 	return tz
 }
 
-func getIsoLangCode(name string, r map[string]string, req bool, ignErrs bool) gtfs.LanguageISO6391 {
+func getIsoLangCode(name string, r map[string]string, req bool, ignErrs bool, feed *Feed) gtfs.LanguageISO6391 {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		l, e := gtfs.NewLanguageISO6391(strings.TrimSpace(val))
 		if e != nil && (req || !ignErrs) {
 			panic(e)
 		} else if e != nil {
+			feed.warn(e)
 			return l
 		}
 		return l
@@ -812,28 +853,34 @@ func getIsoLangCode(name string, r map[string]string, req bool, ignErrs bool) gt
 	return l
 }
 
-func getColor(name string, r map[string]string, req bool, def string, ignErrs bool) string {
+func getColor(name string, r map[string]string, req bool, def string, ignErrs bool, feed *Feed) string {
 	if val, ok := r[name]; ok && len(val) > 0 {
 		val = strings.TrimSpace(val)
 		if len(val) != 6 {
+			locErr := fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", name, errFldPrep(val))
 			if ignErrs {
+				feed.warn(locErr)
 				return def
 			}
-			panic(fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", name, errFldPrep(val)))
+			panic(locErr)
 		}
 
 		if _, e := hex.DecodeString(val); e != nil {
+			locErr := fmt.Errorf("Expected hexadecimal number as color for field '%s' (found: %s)", name, val)
 			if ignErrs {
+				feed.warn(locErr)
 				return def
 			}
-			panic(fmt.Errorf("Expected hexadecimal number as color for field '%s' (found: %s)", name, val))
+			panic(locErr)
 		}
 		return strings.ToUpper(val)
 	} else if req {
+		locErr := fmt.Errorf("Expected required field '%s'", name)
 		if ignErrs {
+			feed.warn(locErr)
 			return def
 		}
-		panic(fmt.Errorf("Expected required field '%s'", name))
+		panic(locErr)
 	}
 	return strings.ToUpper(def)
 }
@@ -851,14 +898,16 @@ func getInt(name string, r map[string]string, req bool) int {
 	return 0
 }
 
-func getIntWithDefault(name string, r map[string]string, def int, ignErrs bool) int {
+func getIntWithDefault(name string, r map[string]string, def int, ignErrs bool, feed *Feed) int {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil {
+			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", name, errFldPrep(val))
 			if ignErrs {
+				feed.warn(locErr)
 				return def
 			}
-			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, errFldPrep(val)))
+			panic(locErr)
 		}
 		return num
 	}
@@ -878,14 +927,16 @@ func getPositiveInt(name string, r map[string]string, req bool) int {
 	return 0
 }
 
-func getPositiveIntWithDefault(name string, r map[string]string, def int, ignErrs bool) int {
+func getPositiveIntWithDefault(name string, r map[string]string, def int, ignErrs bool, feed *Feed) int {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil || num < 0 {
+			locErr := fmt.Errorf("Expected positive integer for field '%s', found '%s'", name, errFldPrep(val))
 			if ignErrs {
+				feed.warn(locErr)
 				return def
 			}
-			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", name, errFldPrep(val)))
+			panic(locErr)
 		}
 		return num
 	}
@@ -910,21 +961,25 @@ func getRangeInt(name string, r map[string]string, req bool, min int, max int) i
 	return 0
 }
 
-func getRangeIntWithDefault(name string, r map[string]string, min int, max int, def int, ignErrs bool) int {
+func getRangeIntWithDefault(name string, r map[string]string, min int, max int, def int, ignErrs bool, feed *Feed) int {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil {
+			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", name, errFldPrep(val))
 			if ignErrs {
+				feed.warn(locErr)
 				return def
 			}
-			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", name, errFldPrep(val)))
+			panic(locErr)
 		}
 
 		if num > max || num < min {
+			locErr := fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, name, errFldPrep(val))
 			if ignErrs {
+				feed.warn(locErr)
 				return def
 			}
-			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, name, errFldPrep(val)))
+			panic(locErr)
 		}
 
 		return num
@@ -946,60 +1001,70 @@ func getFloat(name string, r map[string]string, req bool) float32 {
 	return -1
 }
 
-func getNullablePositiveFloat(name string, r map[string]string, ignErrs bool) (float32, bool) {
+func getNullablePositiveFloat(name string, r map[string]string, ignErrs bool, feed *Feed) (float32, bool) {
 	if val, ok := r[name]; ok && len(val) > 0 {
 		num, err := strconv.ParseFloat(strings.TrimSpace(val), 32)
 		if err != nil || num < 0 {
+			locErr := fmt.Errorf("Expected positive float for field '%s', found '%s'", name, errFldPrep(val))
 			if ignErrs {
+				feed.warn(locErr)
 				return 0, true
 			}
-			panic(fmt.Errorf("Expected positive float for field '%s', found '%s'", name, errFldPrep(val)))
+			panic(locErr)
 		}
 		return float32(num), false
 	}
 	return 0, true
 }
 
-func getNullableFloat(name string, r map[string]string, ignErrs bool) (float32, bool) {
+func getNullableFloat(name string, r map[string]string, ignErrs bool, feed *Feed) (float32, bool) {
 	if val, ok := r[name]; ok && len(val) > 0 {
 		num, err := strconv.ParseFloat(strings.TrimSpace(val), 32)
 		if err != nil {
+			locErr := fmt.Errorf("Expected float for field '%s', found '%s'", name, errFldPrep(val))
 			if ignErrs {
+				feed.warn(locErr)
 				return 0, true
 			}
-			panic(fmt.Errorf("Expected float for field '%s', found '%s'", name, errFldPrep(val)))
+			panic(locErr)
 		}
 		return float32(num), false
 	}
 	return 0, true
 }
 
-func getBool(name string, r map[string]string, req bool, def bool, ignErrs bool) bool {
+func getBool(name string, r map[string]string, req bool, def bool, ignErrs bool, feed *Feed) bool {
 	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
 		num, err := strconv.Atoi(strings.TrimSpace(val))
 		if err != nil || (num != 0 && num != 1) {
+			locErr := fmt.Errorf("Expected 1 or 0 for field '%s', found '%s'", name, errFldPrep(val))
 			if ignErrs {
+				feed.warn(locErr)
 				return def
 			}
-			panic(fmt.Errorf("Expected 1 or 0 for field '%s', found '%s'", name, errFldPrep(val)))
+			panic(locErr)
 		}
 		return num == 1
 	} else if req {
+		locErr := fmt.Errorf("Expected required field '%s'", name)
 		if ignErrs {
+			feed.warn(locErr)
 			return def
 		}
-		panic(fmt.Errorf("Expected required field '%s'", name))
+		panic(locErr)
 	}
 	return def
 }
 
-func getDate(name string, r map[string]string, req bool, ignErrs bool) gtfs.Date {
+func getDate(name string, r map[string]string, req bool, ignErrs bool, feed *Feed) gtfs.Date {
 	var str string
 	var ok bool
 	if str, ok = r[name]; !ok || len(str) == 0 {
+		locErr := fmt.Errorf("Expected required field '%s'", name)
 		if req {
-			panic(fmt.Errorf("Expected required field '%s'", name))
+			panic(locErr)
 		} else {
+			feed.warn(locErr)
 			return gtfs.Date{Day: 0, Month: 0, Year: 0}
 		}
 	}
@@ -1019,11 +1084,14 @@ func getDate(name string, r map[string]string, req bool, ignErrs bool) gtfs.Date
 		year, e = strconv.Atoi(str[0:4])
 	}
 
-	if e != nil && !ignErrs {
-		panic(fmt.Errorf("Expected YYYYMMDD date for field '%s', found '%s' (%s)", name, errFldPrep(str), e.Error()))
-	} else {
-		return gtfs.Date{Day: int8(day), Month: int8(month), Year: int16(year)}
+	if e != nil {
+		locErr := fmt.Errorf("Expected YYYYMMDD date for field '%s', found '%s' (%s)", name, errFldPrep(str), e.Error())
+		if !ignErrs {
+			panic(locErr)
+		}
+		feed.warn(locErr)
 	}
+	return gtfs.Date{Day: int8(day), Month: int8(month), Year: int16(year)}
 }
 
 func getTime(name string, r map[string]string) gtfs.Time {

@@ -46,6 +46,26 @@ type ParseOptions struct {
 	CheckNullCoordinates bool
 	EmptyStringRepl      string
 	ZipFix               bool
+	ShowWarnings         bool
+	PolygonFilter        [][][]float64
+}
+
+type ErrStats struct {
+	DroppedAgencies           int
+	DroppedStops              int
+	DroppedRoutes             int
+	DroppedTrips              int
+	DroppedStopTimes          int
+	DroppedFrequencies        int
+	DroppedServices           int
+	DroppedFareAttributes     int
+	DroppedFareAttributeRules int
+	DroppedAttributions       int
+	DroppedShapes             int
+	DroppedLevels             int
+	DroppedPathways           int
+	DroppedTransfers          int
+	DroppedFeedInfos          int
 }
 
 // Feed represents a single GTFS feed
@@ -64,6 +84,9 @@ type Feed struct {
 
 	// this only holds feed-wide attributions
 	Attributions []*gtfs.Attribution
+
+	ErrorStats   ErrStats
+	NumShpPoints int
 
 	ColOrders ColOrders
 
@@ -87,7 +110,9 @@ func NewFeed() *Feed {
 		Pathways:       make(map[string]*gtfs.Pathway),
 		Transfers:      make([]*gtfs.Transfer, 0),
 		FeedInfos:      make([]*gtfs.FeedInfo, 0),
-		opts:           ParseOptions{false, false, false, false, "", false},
+		ErrorStats:     ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		NumShpPoints:   0,
+		opts:           ParseOptions{false, false, false, false, "", false, false, make([][][]float64, 0)},
 	}
 	return &g
 }
@@ -107,6 +132,12 @@ func (feed *Feed) Parse(path string) error {
 func (feed *Feed) PrefixParse(path string, prefix string) error {
 	var e error
 
+	// holds stops that are dropped because of geometric filtering.
+	// if these are referenced later, we quietly ignore the error like
+	// with -De
+
+	geofilteredStops := make(map[string]struct{}, 0)
+
 	e = feed.parseAgencies(path, prefix)
 	if e == nil {
 		e = feed.parseFeedInfos(path)
@@ -115,7 +146,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseLevels(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseStops(path, prefix)
+		e = feed.parseStops(path, prefix, geofilteredStops)
 	}
 	if e == nil {
 		e = feed.parseShapes(path, prefix)
@@ -133,7 +164,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseTrips(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseStopTimes(path, prefix)
+		e = feed.parseStopTimes(path, prefix, geofilteredStops)
 	}
 	if e == nil {
 		e = feed.parseFareAttributes(path, prefix)
@@ -145,10 +176,10 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseFrequencies(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseTransfers(path, prefix)
+		e = feed.parseTransfers(path, prefix, geofilteredStops)
 	}
 	if e == nil {
-		e = feed.parsePathways(path, prefix)
+		e = feed.parsePathways(path, prefix, geofilteredStops)
 	}
 	if e == nil {
 		e = feed.parseAttributions(path, prefix)
@@ -226,7 +257,7 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		agency, e := createAgency(record, prefix, &feed.opts)
+		agency, e := createAgency(record, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Agencies[agency.Id]; ok {
 				e = errors.New("ID collision, agency_id '" + agency.Id + "' already used.")
@@ -234,6 +265,8 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 		}
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedAgencies++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -247,7 +280,7 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseStops(path string, prefix string) (err error) {
+func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "stops.txt")
 
 	if e != nil {
@@ -265,7 +298,7 @@ func (feed *Feed) parseStops(path string, prefix string) (err error) {
 	var record map[string]string
 	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		stop, parentId, e := createStop(record, feed.Levels, prefix, &feed.opts)
+		stop, parentId, e := createStop(record, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Stops[stop.Id]; ok {
 				e = errors.New("ID collision, stop_id '" + stop.Id + "' already used.")
@@ -273,6 +306,8 @@ func (feed *Feed) parseStops(path string, prefix string) (err error) {
 		}
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedStops++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -281,6 +316,24 @@ func (feed *Feed) parseStops(path string, prefix string) (err error) {
 		if len(parentId) > len(prefix) {
 			parentStopIds[stop.Id] = parentId
 		}
+
+		// check if any defined PolygonFilter contains the stop
+		contains := true
+		for _, poly := range feed.opts.PolygonFilter {
+			contains = false
+			if len(poly) > 0 {
+				if polyContains(float64(stop.Lon), float64(stop.Lat), poly) {
+					contains = true
+					break
+				}
+			}
+		}
+
+		if !contains {
+			geofiltered[stop.Id] = struct{}{}
+			continue
+		}
+
 		feed.Stops[stop.Id] = stop
 	}
 
@@ -290,38 +343,53 @@ func (feed *Feed) parseStops(path string, prefix string) (err error) {
 	for id, pid := range parentStopIds {
 		pstop, ok := feed.Stops[pid]
 		if !ok {
+			locErr := errors.New("(for stop id " + id + ") No station with id " + pid + " found, cannot use as parent station here.")
+			_, wasFiltered := geofiltered[pid]
 			if feed.opts.UseDefValueOnError {
+				// continue, the default value "nil" has already be written above
+				feed.warn(locErr)
+				continue
+			} else if wasFiltered {
 				// continue, the default value "nil" has already be written above
 				continue
 			} else if feed.opts.DropErroneous {
 				// delete the erroneous entry
 				delete(feed.Stops, id)
+				feed.ErrorStats.DroppedStops++
+				feed.warn(locErr)
 				continue
 			} else {
-				panic(errors.New("(for stop id " + id + ") No station with id " + pid + " found, cannot use as parent station here."))
+				return locErr
 			}
 		}
 
 		if (feed.Stops[id].Location_type == 0 || feed.Stops[id].Location_type == 2 || feed.Stops[id].Location_type == 3) && pstop.Location_type != 1 {
+			locErr := fmt.Errorf("(for stop id %s) Station with id %s has location_type=%d, cannot use as parent station here for stop with location_type=%d (must be 1).", id, pid, pstop.Location_type, feed.Stops[id].Location_type)
 			if feed.opts.UseDefValueOnError && !(feed.Stops[id].Location_type == 2 || feed.Stops[id].Location_type == 3) {
 				// continue, the default value "nil" has already be written above
+				feed.warn(locErr)
 				continue
 			} else if feed.opts.DropErroneous {
 				// delete the erroneous entry
 				delete(feed.Stops, id)
+				feed.ErrorStats.DroppedStops++
+				feed.warn(locErr)
 				continue
 			} else {
-				panic(fmt.Errorf("(for stop id %s) Station with id %s has location_type=%d, cannot use as parent station here for stop with location_type=%d (must be 1).", id, pid, pstop.Location_type, feed.Stops[id].Location_type))
+				return (locErr)
 			}
 		}
 
 		if feed.Stops[id].Location_type == 4 && pstop.Location_type != 0 {
+			locErr := fmt.Errorf("(for stop id %s) Station with id %s has location_type=%d, cannot use as parent station here for stop with location_type=4 (boarding area), which expects a parent station with location_type=0 (stop/platform).", id, pid, pstop.Location_type)
 			if feed.opts.DropErroneous {
 				// delete the erroneous entry
 				delete(feed.Stops, id)
+				feed.ErrorStats.DroppedStops++
+				feed.warn(locErr)
 				continue
 			} else {
-				panic(fmt.Errorf("(for stop id %s) Station with id %s has location_type=%d, cannot use as parent station here for stop with location_type=4 (boarding area), which expects a parent station with location_type=0 (stop/platform).", id, pid, pstop.Location_type))
+				panic(locErr)
 			}
 		}
 
@@ -348,7 +416,7 @@ func (feed *Feed) parseRoutes(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		route, e := createRoute(record, feed.Agencies, prefix, &feed.opts)
+		route, e := createRoute(record, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Routes[route.Id]; ok {
 				e = errors.New("ID collision, route_id '" + route.Id + "' already used.")
@@ -356,6 +424,8 @@ func (feed *Feed) parseRoutes(path string, prefix string) (err error) {
 		}
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedRoutes++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -390,10 +460,12 @@ func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		service, e := createServiceFromCalendar(record, feed.Services, prefix, &feed.opts)
+		service, e := createServiceFromCalendar(record, feed, prefix)
 
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedServices++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -432,10 +504,12 @@ func (feed *Feed) parseCalendarDates(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		service, e := createServiceFromCalendarDates(record, feed.Services, prefix)
+		service, e := createServiceFromCalendarDates(record, feed, prefix)
 
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedServices++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -474,7 +548,7 @@ func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		trip, e := createTrip(record, feed.Routes, feed.Services, feed.Shapes, prefix, &feed.opts)
+		trip, e := createTrip(record, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Trips[trip.Id]; ok {
 				e = errors.New("ID collision, trip_id '" + trip.Id + "' already used.")
@@ -482,6 +556,8 @@ func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 		}
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedTrips++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -512,9 +588,11 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createShapePoint(record, feed.Shapes, prefix, &feed.opts)
+		e := createShapePoint(record, feed, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedShapes++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -529,6 +607,7 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 		for _, shape := range feed.Shapes {
 			sort.Sort(shape.Points)
 			e = feed.checkShapeMeasure(shape, &feed.opts)
+			feed.NumShpPoints += len(shape.Points)
 			if e != nil {
 				break
 			}
@@ -544,7 +623,7 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseStopTimes(path string, prefix string) (err error) {
+func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "stop_times.txt")
 
 	if e != nil {
@@ -560,10 +639,16 @@ func (feed *Feed) parseStopTimes(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createStopTime(record, feed.Stops, feed.Trips, prefix, &feed.opts)
+		e := createStopTime(record, feed, prefix)
 
 		if e != nil {
-			if feed.opts.DropErroneous {
+			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
+			_, wasFiltered := geofiltered[stopNotFoundErr.StopId()]
+			if stopNotFound && wasFiltered {
+				continue
+			} else if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedStopTimes++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -607,9 +692,11 @@ func (feed *Feed) parseFrequencies(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createFrequency(record, feed.Trips, prefix, &feed.opts)
+		e := createFrequency(record, feed, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedFrequencies++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -638,9 +725,11 @@ func (feed *Feed) parseFareAttributes(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		fa, e := createFareAttribute(record, feed.Agencies, prefix, &feed.opts)
+		fa, e := createFareAttribute(record, feed, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedFareAttributes++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -670,9 +759,11 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string) (err error
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createFareRule(record, feed.FareAttributes, feed.Routes, prefix)
+		e := createFareRule(record, feed, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedFareAttributeRules++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -685,7 +776,7 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string) (err error
 	return e
 }
 
-func (feed *Feed) parseTransfers(path string, prefix string) (err error) {
+func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "transfers.txt")
 
 	if e != nil {
@@ -701,9 +792,15 @@ func (feed *Feed) parseTransfers(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		t, e := createTransfer(record, feed.Stops, prefix, &feed.opts)
+		t, e := createTransfer(record, feed, prefix)
 		if e != nil {
-			if feed.opts.DropErroneous {
+			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
+			_, wasFiltered := geofiltered[stopNotFoundErr.StopId()]
+			if stopNotFound && wasFiltered {
+				continue
+			} else if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedTransfers++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -719,7 +816,7 @@ func (feed *Feed) parseTransfers(path string, prefix string) (err error) {
 	return e
 }
 
-func (feed *Feed) parsePathways(path string, prefix string) (err error) {
+func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "pathways.txt")
 
 	if e != nil {
@@ -735,14 +832,20 @@ func (feed *Feed) parsePathways(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		pw, e := createPathway(record, feed.Stops, prefix, &feed.opts)
+		pw, e := createPathway(record, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Pathways[pw.Id]; ok {
 				e = errors.New("ID collision, pathway_id '" + pw.Id + "' already used.")
 			}
 		}
 		if e != nil {
-			if feed.opts.DropErroneous {
+			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
+			_, wasFiltered := geofiltered[stopNotFoundErr.StopId()]
+			if stopNotFound && wasFiltered {
+				continue
+			} else if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedPathways++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -774,7 +877,7 @@ func (feed *Feed) parseAttributions(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		attr, ag, route, trip, e := createAttribution(record, feed, prefix, &feed.opts)
+		attr, ag, route, trip, e := createAttribution(record, feed, prefix)
 		if e == nil {
 			if _, ok := ids[attr.Id]; ok {
 				e = errors.New("ID collision, attribution_id '" + attr.Id + "' already used.")
@@ -783,6 +886,8 @@ func (feed *Feed) parseAttributions(path string, prefix string) (err error) {
 		}
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedAttributions++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -823,7 +928,7 @@ func (feed *Feed) parseLevels(path string, idprefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		lvl, e := createLevel(record, idprefix, &feed.opts)
+		lvl, e := createLevel(record, feed, idprefix)
 		if e == nil {
 			if _, ok := feed.Levels[lvl.Id]; ok {
 				e = errors.New("ID collision, level_id '" + lvl.Id + "' already used.")
@@ -832,6 +937,8 @@ func (feed *Feed) parseLevels(path string, idprefix string) (err error) {
 
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedLevels++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -861,9 +968,11 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		fi, e := createFeedInfo(record, &feed.opts)
+		fi, e := createFeedInfo(record, feed)
 		if e != nil {
 			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedFeedInfos++
+				feed.warn(e)
 				continue
 			} else {
 				panic(e)
@@ -889,14 +998,18 @@ func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error 
 		}
 
 		if shape.Points[i].HasDistanceTraveled() && max > shape.Points[i].Dist_traveled {
+			e := fmt.Errorf("In shape '%s' for point with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)
 			if opt.UseDefValueOnError {
 				shape.Points[i].Dist_traveled = 0
 				shape.Points[i].Has_dist = false
+				feed.warn(e)
 			} else if opt.DropErroneous {
+				feed.ErrorStats.DroppedShapes++
+				feed.warn(e)
 				shape.Points = shape.Points[:i+copy(shape.Points[i:], shape.Points[i+1:])]
 				deleted++
 			} else {
-				return fmt.Errorf("In shape '%s' for point with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)
+				return e
 			}
 		}
 	}
@@ -910,12 +1023,15 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 		i := j - deleted
 
 		if !trip.StopTimes[i-1].Departure_time.Empty() && !trip.StopTimes[i].Arrival_time.Empty() && trip.StopTimes[i-1].Departure_time.SecondsSinceMidnight() > trip.StopTimes[i].Arrival_time.SecondsSinceMidnight() {
+			e := fmt.Errorf("In trip '%s' for stoptime with seq=%d the arrival time is before the departure in the previous station", trip.Id, trip.StopTimes[i].Sequence)
 			if opt.DropErroneous {
+				feed.ErrorStats.DroppedStopTimes++
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
+				feed.warn(e)
 				deleted++
 				continue
 			} else {
-				return fmt.Errorf("In trip '%s' for stoptime with seq=%d the arrival time is before the departure in the previous station", trip.Id, trip.StopTimes[i].Sequence)
+				return e
 			}
 		}
 
@@ -924,19 +1040,78 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 		}
 
 		if trip.StopTimes[i].HasDistanceTraveled() && max > trip.StopTimes[i].Shape_dist_traveled {
+			e := fmt.Errorf("In trip '%s' for stoptime with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)
 			if opt.UseDefValueOnError {
 				trip.StopTimes[i].Shape_dist_traveled = 0
 				trip.StopTimes[i].Has_dist = false
+				feed.warn(e)
 			} else if opt.DropErroneous {
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
+				feed.ErrorStats.DroppedStopTimes++
+				feed.warn(e)
 				deleted++
 				continue
 			} else {
-				return fmt.Errorf("In trip '%s' for stoptime with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)
+				return e
 			}
 		}
 	}
 	return nil
+}
+
+func polyContains(x float64, y float64, poly [][]float64) bool {
+	// see https://de.wikipedia.org/wiki/Punkt-in-Polygon-Test_nach_Jordan
+	c := int8(-1)
+
+	for i := 1; i < len(poly); i++ {
+		c *= polyContCheck(x, y, poly[i-1][0], poly[i-1][1], poly[i][0], poly[i][1])
+		if c == 0 {
+			return true
+		}
+	}
+
+	c *= polyContCheck(x, y, poly[len(poly)-1][0], poly[len(poly)-1][1], poly[0][0], poly[0][1])
+
+	return c >= 0
+}
+
+func polyContCheck(ax float64, ay float64, bx float64, by float64, cx float64, cy float64) int8 {
+	EPSILON := 0.00000001
+	if ay == by && ay == cy {
+		if !((bx <= ax && ax <= cx) ||
+			(cx <= ax && ax <= bx)) {
+			return 1
+		}
+		return 0
+	}
+	if math.Abs(ay-by) < EPSILON &&
+		math.Abs(ax-by) < EPSILON {
+		return 0
+	}
+
+	if by > cy {
+		tmpx := bx
+		tmpy := by
+		bx = cx
+		by = cy
+		cx = tmpx
+		cy = tmpy
+	}
+
+	if ay <= by || ay > cy {
+		return 1
+	}
+
+	d := (bx-ax)*(cy-ay) -
+		(by-ay)*(cx-ax)
+
+	if d > 0 {
+		return -1
+	}
+	if d < 0 {
+		return 1
+	}
+	return 0
 }
 
 func (feed *Feed) getGTFSDir(zip *zip.ReadCloser) string {
@@ -979,4 +1154,10 @@ func (feed *Feed) getGTFSDir(zip *zip.ReadCloser) string {
 	}
 
 	return ret
+}
+
+func (feed *Feed) warn(e error) {
+	if feed.opts.ShowWarnings {
+		fmt.Fprintln(os.Stderr, "WARNING: "+e.Error())
+	}
 }
