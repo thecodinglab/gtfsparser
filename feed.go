@@ -313,9 +313,6 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 				panic(e)
 			}
 		}
-		if len(parentId) > len(prefix) {
-			parentStopIds[stop.Id] = parentId
-		}
 
 		// check if any defined PolygonFilter contains the stop
 		contains := true
@@ -332,6 +329,10 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 		if !contains {
 			geofiltered[stop.Id] = struct{}{}
 			continue
+		}
+
+		if len(parentId) > len(prefix) {
+			parentStopIds[stop.Id] = parentId
 		}
 
 		feed.Stops[stop.Id] = stop
