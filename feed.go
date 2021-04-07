@@ -192,10 +192,12 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	// close open readers
 	if feed.zipFileCloser != nil {
 		feed.zipFileCloser.Close()
+		feed.zipFileCloser = nil
 	}
 
 	if feed.curFileHandle != nil {
 		feed.curFileHandle.Close()
+		feed.curFileHandle = nil
 	}
 
 	if feed.opts.DateFilterStart.Year > 0 || feed.opts.DateFilterEnd.Year > 0 {
