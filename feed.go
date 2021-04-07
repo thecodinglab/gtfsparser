@@ -115,7 +115,7 @@ func NewFeed() *Feed {
 		FeedInfos:      make([]*gtfs.FeedInfo, 0),
 		ErrorStats:     ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		NumShpPoints:   0,
-		opts:           ParseOptions{false, false, false, false, "", false, false, false, gtfs.Date{0, 0, 0}, gtfs.Date{0, 0, 0}, make([][][]float64, 0)},
+		opts:           ParseOptions{false, false, false, false, "", false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([][][]float64, 0)},
 	}
 	return &g
 }
