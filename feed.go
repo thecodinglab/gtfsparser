@@ -47,6 +47,9 @@ type ParseOptions struct {
 	EmptyStringRepl      string
 	ZipFix               bool
 	ShowWarnings         bool
+	DropShapes           bool
+	DateFilterStart      gtfs.Date
+	DateFilterEnd        gtfs.Date
 	PolygonFilter        [][][]float64
 }
 
@@ -112,7 +115,7 @@ func NewFeed() *Feed {
 		FeedInfos:      make([]*gtfs.FeedInfo, 0),
 		ErrorStats:     ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		NumShpPoints:   0,
-		opts:           ParseOptions{false, false, false, false, "", false, false, make([][][]float64, 0)},
+		opts:           ParseOptions{false, false, false, false, "", false, false, false, gtfs.Date{0, 0, 0}, gtfs.Date{0, 0, 0}, make([][][]float64, 0)},
 	}
 	return &g
 }
@@ -160,6 +163,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if e == nil {
 		e = feed.parseCalendarDates(path, prefix)
 	}
+
 	if e == nil {
 		e = feed.parseTrips(path, prefix)
 	}
@@ -194,7 +198,26 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		feed.curFileHandle.Close()
 	}
 
+	if feed.opts.DateFilterStart.Year > 0 || feed.opts.DateFilterEnd.Year > 0 {
+		feed.filterServices(prefix)
+	}
+
 	return e
+}
+
+func (feed *Feed) filterServices(prefix string) {
+	for _, t := range feed.Trips {
+		s := t.Service
+		if s.IsEmpty() && s.Start_date.Year == 0 && s.End_date.Year == 0 {
+			delete(feed.Trips, t.Id)
+		}
+	}
+
+	for _, s := range feed.Services {
+		if s.IsEmpty() && s.Start_date.Year == 0 && s.End_date.Year == 0 {
+			delete(feed.Services, s.Id)
+		}
+	}
 }
 
 func (feed *Feed) getFile(path string, name string) (io.Reader, error) {
@@ -479,6 +502,31 @@ func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 				feed.Services[service.Id] = nil
 			} else {
 				feed.Services[service.Id] = service
+				// filter service
+				if feed.opts.DateFilterStart.Year > 0 && service.Start_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) {
+					service.Start_date = feed.opts.DateFilterStart
+					if service.End_date.GetTime().Before(service.Start_date.GetTime()) {
+						service.End_date = service.Start_date
+					}
+				}
+
+				if feed.opts.DateFilterEnd.Year > 0 && service.End_date.GetTime().After(feed.opts.DateFilterEnd.GetTime()) {
+					service.End_date = feed.opts.DateFilterEnd
+					if service.Start_date.GetTime().After(service.End_date.GetTime()) {
+						service.Start_date = service.End_date
+					}
+				}
+
+				if feed.opts.DateFilterStart.Year > 0 && service.End_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) || feed.opts.DateFilterStart.Year > 0 && service.End_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) {
+					service.Daymap[0] = false
+					service.Daymap[1] = false
+					service.Daymap[2] = false
+					service.Daymap[3] = false
+					service.Daymap[4] = false
+					service.Daymap[5] = false
+					service.Daymap[6] = false
+				}
+
 			}
 		}
 	}
@@ -505,7 +553,7 @@ func (feed *Feed) parseCalendarDates(path string, prefix string) (err error) {
 
 	var record map[string]string
 	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		service, e := createServiceFromCalendarDates(record, feed, prefix)
+		service, e := createServiceFromCalendarDates(record, feed, feed.opts.DateFilterStart, feed.opts.DateFilterEnd, prefix)
 
 		if e != nil {
 			if feed.opts.DropErroneous {
@@ -573,6 +621,9 @@ func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 }
 
 func (feed *Feed) parseShapes(path string, prefix string) (err error) {
+	if feed.opts.DropShapes {
+		return
+	}
 	file, e := feed.getFile(path, "shapes.txt")
 
 	if e != nil {

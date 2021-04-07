@@ -16,7 +16,7 @@ type Service struct {
 	Daymap     [7]bool
 	Start_date Date
 	End_date   Date
-	Exceptions map[Date]int8
+	Exceptions map[Date]bool
 }
 
 // A Date object as used in GTFS
@@ -42,10 +42,23 @@ func (s *Service) IsActiveOn(d Date) bool {
 // GetExceptionTypeOn returns the expection type on a particular day
 func (s *Service) GetExceptionTypeOn(d Date) int8 {
 	if t, ok := s.Exceptions[d]; ok {
-		return t
+		if t {
+			return 1
+		} else {
+			return 2
+		}
 	}
 
 	return 0
+}
+
+// SetExceptionTypeOn sets the expection type on a particular day
+func (s *Service) SetExceptionTypeOn(d Date, t int8) {
+	if t == 1 {
+		s.Exceptions[d] = true
+	} else if t == 2 {
+		s.Exceptions[d] = false
+	}
 }
 
 // GetGtfsDateFromTime constructs a GTFS Date object from a Time object

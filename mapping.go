@@ -241,7 +241,7 @@ func createServiceFromCalendar(r map[string]string, feed *Feed, prefix string) (
 
 	service := new(gtfs.Service)
 	service.Id = prefix + getString("service_id", r, true, true, "")
-	service.Exceptions = make(map[gtfs.Date]int8, 0)
+	service.Exceptions = make(map[gtfs.Date]bool, 0)
 
 	// fill daybitmap
 	service.Daymap[1] = getBool("monday", r, true, false, feed.opts.UseDefValueOnError, feed)
@@ -257,7 +257,7 @@ func createServiceFromCalendar(r map[string]string, feed *Feed, prefix string) (
 	return service, nil
 }
 
-func createServiceFromCalendarDates(r map[string]string, feed *Feed, prefix string) (s *gtfs.Service, err error) {
+func createServiceFromCalendarDates(r map[string]string, feed *Feed, filterDateStart gtfs.Date, filterDateEnd gtfs.Date, prefix string) (s *gtfs.Service, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -273,7 +273,7 @@ func createServiceFromCalendarDates(r map[string]string, feed *Feed, prefix stri
 	} else {
 		service = new(gtfs.Service)
 		service.Id = prefix + getString("service_id", r, true, true, "")
-		service.Exceptions = make(map[gtfs.Date]int8, 0)
+		service.Exceptions = make(map[gtfs.Date]bool, 0)
 	}
 
 	// create exception
@@ -285,7 +285,10 @@ func createServiceFromCalendarDates(r map[string]string, feed *Feed, prefix stri
 		if _, ok := service.Exceptions[date]; ok {
 			return nil, errors.New("Date exception for service id " + getString("service_id", r, true, true, "") + " defined 2 times for one date.")
 		}
-		service.Exceptions[date] = int8(t)
+		if (filterDateEnd.Year == 0 || !date.GetTime().After(filterDateEnd.GetTime())) &&
+			(filterDateStart.Year == 0 || !date.GetTime().Before(filterDateStart.GetTime())) {
+			service.SetExceptionTypeOn(date, int8(t))
+		}
 	}
 
 	if update {
@@ -507,18 +510,20 @@ func createTrip(r map[string]string, feed *Feed, prefix string) (t *gtfs.Trip, e
 		a.Block_id = ""
 	}
 
-	shapeID := prefix + getString("shape_id", r, false, false, "")
+	if !feed.opts.DropShapes {
+		shapeID := prefix + getString("shape_id", r, false, false, "")
 
-	if len(shapeID) > len(prefix) {
-		if val, ok := feed.Shapes[shapeID]; ok {
-			a.Shape = val
-		} else {
-			locErr := fmt.Errorf("No shape with id %s found", shapeID)
-			if feed.opts.UseDefValueOnError {
-				feed.warn(locErr)
-				a.Shape = nil
+		if len(shapeID) > len(prefix) {
+			if val, ok := feed.Shapes[shapeID]; ok {
+				a.Shape = val
 			} else {
-				return nil, locErr
+				locErr := fmt.Errorf("No shape with id %s found", shapeID)
+				if feed.opts.UseDefValueOnError {
+					feed.warn(locErr)
+					a.Shape = nil
+				} else {
+					return nil, locErr
+				}
 			}
 		}
 	}
