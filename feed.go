@@ -504,22 +504,9 @@ func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 				feed.Services[service.Id] = nil
 			} else {
 				feed.Services[service.Id] = service
-				// filter service
-				if feed.opts.DateFilterStart.Year > 0 && service.Start_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) {
-					service.Start_date = feed.opts.DateFilterStart
-					if service.End_date.GetTime().Before(service.Start_date.GetTime()) {
-						service.End_date = service.Start_date
-					}
-				}
 
-				if feed.opts.DateFilterEnd.Year > 0 && service.End_date.GetTime().After(feed.opts.DateFilterEnd.GetTime()) {
-					service.End_date = feed.opts.DateFilterEnd
-					if service.Start_date.GetTime().After(service.End_date.GetTime()) {
-						service.Start_date = service.End_date
-					}
-				}
-
-				if feed.opts.DateFilterStart.Year > 0 && service.End_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) || feed.opts.DateFilterStart.Year > 0 && service.End_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) {
+				// check if service is completely out of range
+				if feed.opts.DateFilterStart.Year > 0 && service.End_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) || feed.opts.DateFilterEnd.Year > 0 && service.Start_date.GetTime().After(feed.opts.DateFilterEnd.GetTime()) {
 					service.Daymap[0] = false
 					service.Daymap[1] = false
 					service.Daymap[2] = false
@@ -527,8 +514,21 @@ func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 					service.Daymap[4] = false
 					service.Daymap[5] = false
 					service.Daymap[6] = false
-				}
+				} else {
+					// we overlap, there are now two cases:
 
+					// 1. A start date is defined, and the service starts before the start time. Set the start time to the new start time
+					if feed.opts.DateFilterStart.Year > 0 && service.Start_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) {
+						service.Start_date = feed.opts.DateFilterStart
+						// note: because of the check above, End_date is guaranteed to >= DateFilterStart, so our service remains valid
+					}
+
+					// 2. An end date is defined, and the service ends after the start time. Set the end  time to the new end time
+					if feed.opts.DateFilterEnd.Year > 0 && service.End_date.GetTime().After(feed.opts.DateFilterEnd.GetTime()) {
+						service.End_date = feed.opts.DateFilterEnd
+						// note: because of the check above, Start_date is guaranteed to <= DateFilterEnd, so our service remains valid
+					}
+				}
 			}
 		}
 	}

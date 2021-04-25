@@ -254,6 +254,10 @@ func createServiceFromCalendar(r map[string]string, feed *Feed, prefix string) (
 	service.Start_date = getDate("start_date", r, true, false, feed)
 	service.End_date = getDate("end_date", r, true, false, feed)
 
+	if service.End_date.GetTime().Before(service.Start_date.GetTime()) {
+		return nil, errors.New("Service " + getString("service_id", r, true, true, "") + " has the end date before the start date.")
+	}
+
 	return service, nil
 }
 
