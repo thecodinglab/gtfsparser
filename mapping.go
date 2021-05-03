@@ -215,8 +215,8 @@ func createRoute(r map[string]string, feed *Feed, prefix string) (route *gtfs.Ro
 		return nil, errors.New("No agency given for route " + a.Id + ", an agency is required as there is more than one agency in agency.txt.")
 	}
 
-	a.Short_name = getString("route_short_name", r, true, false, "")
-	a.Long_name = getString("route_long_name", r, true, false, "")
+	a.Short_name = getString("route_short_name", r, false, false, "")
+	a.Long_name = getString("route_long_name", r, false, false, "")
 
 	if len(a.Short_name) == 0 && len(a.Long_name) == 0 {
 		return nil, errors.New("Either route_short_name or route_long_name are required.")
