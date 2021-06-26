@@ -14,12 +14,10 @@ type Pathway struct {
 	Mode                   uint8
 	Is_bidirectional       bool
 	Length                 float32
-	Has_length             bool
 	Traversal_time         int
 	Stair_count            int
 	Max_slope              float32
 	Min_width              float32
-	Has_min_width          bool
 	Signposted_as          string
 	Reversed_signposted_as string
 }

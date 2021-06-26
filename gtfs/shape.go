@@ -7,6 +7,7 @@
 package gtfs
 
 import (
+	"math"
 	"strconv"
 )
 
@@ -22,7 +23,6 @@ type ShapePoint struct {
 	Lon           float32
 	Sequence      int
 	Dist_traveled float32
-	Has_dist      bool
 }
 
 // Get a string representation of a ShapePoint
@@ -62,5 +62,5 @@ func (shapePoints ShapePoints) Swap(i, j int) {
 
 // HasDistanceTraveled returns true if this ShapePoint has a measurement
 func (p *ShapePoint) HasDistanceTraveled() bool {
-	return p.Has_dist
+	return !math.IsNaN(float64(p.Dist_traveled))
 }

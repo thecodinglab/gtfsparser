@@ -319,49 +319,48 @@ func createStop(r map[string]string, feed *Feed, prefix string) (s *gtfs.Stop, p
 	if a.Location_type < 3 {
 		a.Lat = getFloat("stop_lat", r, true)
 		a.Lon = getFloat("stop_lon", r, true)
-		a.Has_LatLon = true
 	} else {
-		lat, latNulled := getNullableFloat("stop_lat", r, feed.opts.UseDefValueOnError, feed)
-		lon, lonNulled := getNullableFloat("stop_lon", r, feed.opts.UseDefValueOnError, feed)
+		lat := getNullableFloat("stop_lat", r, feed.opts.UseDefValueOnError, feed)
+		lon := getNullableFloat("stop_lon", r, feed.opts.UseDefValueOnError, feed)
 
-		if !latNulled && !lonNulled {
+		if !math.IsNaN(float64(lat)) && !math.IsNaN(float64(lon)) {
 			a.Lat = lat
 			a.Lon = lon
-			a.Has_LatLon = true
-		} else if !latNulled {
+		} else if !math.IsNaN(float64(lat)) {
 			locErr := fmt.Errorf("stop_lat and stop_lon are optional for location_type=%d, but only stop_lon was ommitted here, and stop_lat was defined.", a.Location_type)
 			if feed.opts.UseDefValueOnError {
 				feed.warn(locErr)
-				a.Lat = 0
-				a.Has_LatLon = false
+				a.Lat = float32(math.NaN())
+				a.Lon = float32(math.NaN())
 			} else {
 				panic(locErr)
 			}
-		} else if !lonNulled {
+		} else if !math.IsNaN(float64(lon)) {
 			locErr := fmt.Errorf("stop_lat and stop_lon are optional for location_type=%d, but only stop_lat was ommitted here, and stop_lon was defined.", a.Location_type)
 			if feed.opts.UseDefValueOnError {
 				feed.warn(locErr)
-				a.Lon = 0
-				a.Has_LatLon = false
+				a.Lat = float32(math.NaN())
+				a.Lon = float32(math.NaN())
 			} else {
 				panic(locErr)
 			}
 		} else {
-			a.Has_LatLon = false
+			a.Lat = float32(math.NaN())
+			a.Lon = float32(math.NaN())
 		}
 	}
 
 	// check for incorrect coordinates
-	if a.Has_LatLon && math.Abs(float64(a.Lat)) > 90 {
+	if a.HasLatLon() && math.Abs(float64(a.Lat)) > 90 {
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), latitude is not in the allowed range [-90, 90].", a.Lat, a.Lon))
 	}
 
-	if a.Has_LatLon && math.Abs(float64(a.Lon)) > 180 {
+	if a.HasLatLon() && math.Abs(float64(a.Lon)) > 180 {
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-180, 180].", a.Lat, a.Lon))
 	}
 
 	// check for 0,0 coordinates, which are most definitely an error
-	if a.Has_LatLon && feed.opts.CheckNullCoordinates && math.Abs(float64(a.Lat)) < 0.0001 && math.Abs(float64(a.Lon)) < 0.0001 {
+	if a.HasLatLon() && feed.opts.CheckNullCoordinates && math.Abs(float64(a.Lat)) < 0.0001 && math.Abs(float64(a.Lon)) < 0.0001 {
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
 	}
 
@@ -455,9 +454,8 @@ func createStopTime(r map[string]string, feed *Feed, prefix string) (err error) 
 	a.Headsign = getString("stop_headsign", r, false, false, "")
 	a.Pickup_type = int8(getRangeInt("pickup_type", r, false, 0, 3))
 	a.Drop_off_type = int8(getRangeInt("drop_off_type", r, false, 0, 3))
-	dist, nulled := getNullableFloat("shape_dist_traveled", r, feed.opts.UseDefValueOnError, feed)
+	dist := getNullableFloat("shape_dist_traveled", r, feed.opts.UseDefValueOnError, feed)
 	a.Shape_dist_traveled = dist
-	a.Has_dist = !nulled
 	a.Timepoint = getBool("timepoint", r, false, !a.Arrival_time.Empty() && !a.Departure_time.Empty(), feed.opts.UseDefValueOnError, feed)
 
 	if (a.Arrival_time.Empty() || a.Departure_time.Empty()) && a.Timepoint {
@@ -557,7 +555,7 @@ func createShapePoint(r map[string]string, feed *Feed, prefix string) (err error
 		// push it onto the shape map
 		feed.Shapes[shapeID] = shape
 	}
-	dist, nulled := getNullableFloat("shape_dist_traveled", r, feed.opts.UseDefValueOnError, feed)
+	dist := getNullableFloat("shape_dist_traveled", r, feed.opts.UseDefValueOnError, feed)
 
 	lat := getFloat("shape_pt_lat", r, true)
 	lon := getFloat("shape_pt_lon", r, true)
@@ -581,7 +579,6 @@ func createShapePoint(r map[string]string, feed *Feed, prefix string) (err error
 		Lon:           lon,
 		Sequence:      getInt("shape_pt_sequence", r, true),
 		Dist_traveled: dist,
-		Has_dist:      !nulled,
 	}
 
 	if checkShapePointOrdering(p.Sequence, shape.Points) {
@@ -737,18 +734,19 @@ func createPathway(r map[string]string, feed *Feed, prefix string) (t *gtfs.Path
 	a.Mode = uint8(getRangeInt("pathway_mode", r, true, 1, 7))
 	a.Is_bidirectional = getBool("is_bidirectional", r, true, false, feed.opts.UseDefValueOnError, feed)
 
-	length, lenNulled := getNullableFloat("length", r, feed.opts.UseDefValueOnError, feed)
+	length := getNullableFloat("length", r, feed.opts.UseDefValueOnError, feed)
 	a.Length = length
-	a.Has_length = !lenNulled
 
 	a.Traversal_time = int(getPositiveIntWithDefault("traversal_time", r, -1, feed.opts.UseDefValueOnError, feed))
 
 	a.Stair_count = getIntWithDefault("stair_count", r, 0, feed.opts.UseDefValueOnError, feed)
-	a.Max_slope, _ = getNullableFloat("max_slope", r, feed.opts.UseDefValueOnError, feed)
+	a.Max_slope = getNullableFloat("max_slope", r, feed.opts.UseDefValueOnError, feed)
+	if math.IsNaN(float64(a.Max_slope)) {
+		a.Max_slope = 0
+	}
 
-	width, widthNulled := getNullablePositiveFloat("min_width", r, feed.opts.UseDefValueOnError, feed)
+	width := getNullablePositiveFloat("min_width", r, feed.opts.UseDefValueOnError, feed)
 	a.Min_width = width
-	a.Has_min_width = !widthNulled
 
 	a.Signposted_as = getString("signposted_as", r, false, false, "")
 	a.Reversed_signposted_as = getString("reversed_signposted_as", r, false, false, "")
@@ -766,7 +764,10 @@ func createLevel(r map[string]string, feed *Feed, idprefix string) (t *gtfs.Leve
 	a := new(gtfs.Level)
 
 	a.Id = idprefix + getString("level_id", r, true, true, "")
-	a.Index, _ = getNullableFloat("level_index", r, feed.opts.UseDefValueOnError, feed)
+	a.Index = getNullableFloat("level_index", r, feed.opts.UseDefValueOnError, feed)
+	if math.IsNaN(float64(a.Index)) {
+		a.Index = 0
+	}
 	a.Name = getString("level_name", r, false, false, "")
 
 	return a, nil
@@ -1010,36 +1011,36 @@ func getFloat(name string, r map[string]string, req bool) float32 {
 	return -1
 }
 
-func getNullablePositiveFloat(name string, r map[string]string, ignErrs bool, feed *Feed) (float32, bool) {
+func getNullablePositiveFloat(name string, r map[string]string, ignErrs bool, feed *Feed) float32 {
 	if val, ok := r[name]; ok && len(val) > 0 {
 		num, err := strconv.ParseFloat(strings.TrimSpace(val), 32)
 		if err != nil || num < 0 {
 			locErr := fmt.Errorf("Expected positive float for field '%s', found '%s'", name, errFldPrep(val))
 			if ignErrs {
 				feed.warn(locErr)
-				return 0, true
+				return float32(math.NaN())
 			}
 			panic(locErr)
 		}
-		return float32(num), false
+		return float32(num)
 	}
-	return 0, true
+	return float32(math.NaN())
 }
 
-func getNullableFloat(name string, r map[string]string, ignErrs bool, feed *Feed) (float32, bool) {
+func getNullableFloat(name string, r map[string]string, ignErrs bool, feed *Feed) float32 {
 	if val, ok := r[name]; ok && len(val) > 0 {
 		num, err := strconv.ParseFloat(strings.TrimSpace(val), 32)
 		if err != nil {
 			locErr := fmt.Errorf("Expected float for field '%s', found '%s'", name, errFldPrep(val))
 			if ignErrs {
 				feed.warn(locErr)
-				return 0, true
+				return float32(math.NaN())
 			}
 			panic(locErr)
 		}
-		return float32(num), false
+		return float32(num)
 	}
-	return 0, true
+	return float32(math.NaN())
 }
 
 func getBool(name string, r map[string]string, req bool, def bool, ignErrs bool, feed *Feed) bool {

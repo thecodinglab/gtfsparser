@@ -7,6 +7,7 @@
 package gtfs
 
 import (
+	"math"
 	url "net/url"
 )
 
@@ -16,7 +17,6 @@ type Stop struct {
 	Code                string
 	Name                string
 	Desc                string
-	Has_LatLon          bool
 	Lat                 float32
 	Lon                 float32
 	Zone_id             string
@@ -27,4 +27,10 @@ type Stop struct {
 	Wheelchair_boarding int8
 	Level               *Level
 	Platform_code       string
+}
+
+// HasLatLon returns true if this Stop has a latitude and longitude
+func (s *Stop) HasLatLon() bool {
+	return !math.IsNaN(float64(s.Lat)) && !math.IsNaN(float64(s.Lon))
+
 }

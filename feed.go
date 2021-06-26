@@ -1066,8 +1066,7 @@ func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error 
 		if shape.Points[i].HasDistanceTraveled() && max > shape.Points[i].Dist_traveled {
 			e := fmt.Errorf("In shape '%s' for point with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", shape.Id, shape.Points[i].Sequence, max, shape.Points[i].Dist_traveled)
 			if opt.UseDefValueOnError {
-				shape.Points[i].Dist_traveled = 0
-				shape.Points[i].Has_dist = false
+				shape.Points[i].Dist_traveled = float32(math.NaN())
 				feed.warn(e)
 			} else if opt.DropErroneous {
 				feed.ErrorStats.DroppedShapes++
@@ -1108,8 +1107,7 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 		if trip.StopTimes[i].HasDistanceTraveled() && max > trip.StopTimes[i].Shape_dist_traveled {
 			e := fmt.Errorf("In trip '%s' for stoptime with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)
 			if opt.UseDefValueOnError {
-				trip.StopTimes[i].Shape_dist_traveled = 0
-				trip.StopTimes[i].Has_dist = false
+				trip.StopTimes[i].Shape_dist_traveled = float32(math.NaN())
 				feed.warn(e)
 			} else if opt.DropErroneous {
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]

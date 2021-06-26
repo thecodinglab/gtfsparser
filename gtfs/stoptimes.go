@@ -7,6 +7,7 @@
 package gtfs
 
 import (
+	"math"
 	"time"
 )
 
@@ -21,7 +22,6 @@ type StopTime struct {
 	Drop_off_type       int8
 	Shape_dist_traveled float32
 	Timepoint           bool
-	Has_dist            bool
 }
 
 // Time is a simple GTFS time type
@@ -79,5 +79,5 @@ func (a Time) GetLocationTime(d Date, agency *Agency) time.Time {
 
 // HasDistanceTraveled returns true if this ShapePoint has a measurement
 func (s StopTime) HasDistanceTraveled() bool {
-	return s.Has_dist
+	return !math.IsNaN(float64(s.Shape_dist_traveled))
 }
