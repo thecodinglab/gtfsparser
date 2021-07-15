@@ -288,6 +288,20 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 				e = errors.New("ID collision, agency_id '" + agency.Id + "' already used.")
 			}
 		}
+
+		if e == nil {
+			existingAgId := ""
+
+			for k := range feed.Agencies {
+				existingAgId = k
+				break
+			}
+
+			if len(existingAgId) > 0 && feed.Agencies[existingAgId].Timezone != agency.Timezone {
+				e = fmt.Errorf("Agency '%s' has a different timezone (%s) than existing agencies (%s). All agencies must have the same timezone.", agency.Id, agency.Timezone.GetTzString(), feed.Agencies[existingAgId].Timezone.GetTzString())
+			}
+		}
+
 		if e != nil {
 			if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedAgencies++
@@ -297,6 +311,7 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 				panic(e)
 			}
 		}
+
 		feed.Agencies[agency.Id] = agency
 	}
 
