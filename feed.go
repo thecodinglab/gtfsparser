@@ -211,7 +211,7 @@ func (feed *Feed) filterServices(prefix string) {
 	toDel := make([]*gtfs.Service, 0)
 	for _, t := range feed.Trips {
 		s := t.Service
-		if s.IsEmpty() && s.Start_date.Year == 0 && s.End_date.Year == 0 || s.GetFirstActiveDate().Day < 0 {
+		if (s.IsEmpty() && s.Start_date.Year == 0 && s.End_date.Year == 0) || s.GetFirstActiveDate().Day < 0 {
 			delete(feed.Trips, t.Id)
 			toDel = append(toDel, s)
 		}
