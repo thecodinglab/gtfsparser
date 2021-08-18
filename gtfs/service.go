@@ -83,6 +83,12 @@ func (s *Service) Equals(b *Service) bool {
 		// shortcut
 		return true
 	}
+
+	// shortcut
+	if s.Start_date.Year > 0 && b.Start_date.Year > 0 && len(s.Exceptions) == 0 && len(b.Exceptions) == 0 {
+		return s.Start_date == b.Start_date && s.End_date == b.End_date && s.Daymap[0] == b.Daymap[0] && s.Daymap[1] == b.Daymap[1] && s.Daymap[2] == b.Daymap[2] && s.Daymap[3] == b.Daymap[3] && s.Daymap[4] == b.Daymap[4] && s.Daymap[5] == b.Daymap[5] && s.Daymap[6] == b.Daymap[6]
+	}
+
 	startA := s.GetFirstDefinedDate()
 	endB := b.GetLastDefinedDate()
 
