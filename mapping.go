@@ -1070,11 +1070,14 @@ func getDate(name string, r map[string]string, req bool, ignErrs bool, feed *Fee
 	var str string
 	var ok bool
 	if str, ok = r[name]; !ok || len(str) == 0 {
-		locErr := fmt.Errorf("Expected required field '%s'", name)
 		if req {
+			locErr := fmt.Errorf("Expected required field '%s'", name)
+			if ignErrs {
+				feed.warn(locErr)
+				return gtfs.Date{Day: 0, Month: 0, Year: 0}
+			}
 			panic(locErr)
 		} else {
-			feed.warn(locErr)
 			return gtfs.Date{Day: 0, Month: 0, Year: 0}
 		}
 	}
