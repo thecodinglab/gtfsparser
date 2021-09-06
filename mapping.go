@@ -1002,6 +1002,10 @@ func getFloat(name string, r map[string]string, req bool) float32 {
 		trimmed := strings.TrimSpace(val)
 		num, err := strconv.ParseFloat(trimmed, 32)
 		if err != nil {
+			// try with comma as decimal separator
+			num, err = strconv.ParseFloat(strings.Replace(trimmed, ",", ".", 1), 32)
+		}
+		if err != nil {
 			panic(fmt.Errorf("Expected float for field '%s', found '%s'", name, errFldPrep(val)))
 		}
 		return float32(num)

@@ -672,8 +672,19 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 	feed.ColOrders.Shapes = append([]string(nil), reader.header...)
 
 	if e == nil {
-		// sort points in shapes
-		for _, shape := range feed.Shapes {
+		// sort points in shapes, drop empty shapes
+		for id, shape := range feed.Shapes {
+			if len(shape.Points) == 0 {
+				loce := fmt.Errorf("Shape #%s has no points", id)
+				if feed.opts.DropErroneous {
+					// dont warn here, because this can only happen if a shape point
+					// has been deleted before
+					delete(feed.Shapes, id)
+					continue
+				} else {
+					panic(loce)
+				}
+			}
 			sort.Sort(shape.Points)
 			e = feed.checkShapeMeasure(shape, &feed.opts)
 			feed.NumShpPoints += len(shape.Points)
