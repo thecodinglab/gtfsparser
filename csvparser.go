@@ -9,6 +9,7 @@ package gtfsparser
 import (
 	"encoding/csv"
 	"io"
+	"strings"
 )
 
 // CsvParser is a wrapper around csv.Reader
@@ -87,6 +88,12 @@ func (p *CsvParser) parseCsvLine() []string {
 			panic(err)
 		}
 	}
+
+	// trim
+	for i, r := range record {
+		record[i] = strings.TrimSpace(r)
+	}
+
 	return record
 }
 
