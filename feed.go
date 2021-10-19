@@ -868,6 +868,9 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 	}
 	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
+	// avoid duplicate transfers, they will not be noticed because they don't have unique IDs
+	inserted := make(map[gtfs.Transfer]bool)
+
 	defer func() {
 		if r := recover(); r != nil {
 			err = ParseError{"transfers.txt", reader.Curline, r.(error).Error()}
@@ -895,7 +898,10 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 			}
 		}
 		if !feed.opts.DryRun {
-			feed.Transfers = append(feed.Transfers, t)
+			if _, ok := inserted[*t]; !ok {
+				feed.Transfers = append(feed.Transfers, t)
+				inserted[*t] = true
+			}
 		}
 	}
 
