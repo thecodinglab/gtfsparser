@@ -14,6 +14,7 @@ import (
 	"math"
 	mail "net/mail"
 	url "net/url"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -791,11 +792,39 @@ func getString(name string, r map[string]string, req bool, nonempty bool, emptyr
 	return ""
 }
 
+func trimQuotes(s string) string {
+	return strings.TrimSpace(strings.Trim(strings.TrimSpace(s), "«»'\"`‹›„“‟”’‘‛"))
+}
+
 func getURL(name string, r map[string]string, req bool, ignErrs bool, feed *Feed) *url.URL {
-	if val, ok := r[name]; ok && len(strings.TrimSpace(val)) > 0 {
-		u, e := url.ParseRequestURI(strings.TrimSpace(val))
+	if val, ok := r[name]; ok && len(trimQuotes(val)) > 0 {
+		u, e := url.ParseRequestURI(trimQuotes(val))
+
+		// try out various heuristics
 		if e != nil {
-			locErr := fmt.Errorf("'%s' is not a valid url", errFldPrep(val))
+			u, e = url.ParseRequestURI("http://" + trimQuotes(val))
+		}
+
+		if e != nil {
+			// full URL somewhere inside the field
+			pattern := regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`)
+
+			u, e = url.ParseRequestURI(pattern.FindString(val))
+		}
+
+		if e != nil {
+			// url without http/s somewhere inside the field
+			pattern := regexp.MustCompile(`[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`)
+			found := pattern.FindString(val)
+
+			if len(found) > 0 {
+				found = "http://" + found
+				u, e = url.ParseRequestURI(found)
+			}
+		}
+
+		if e != nil {
+			locErr := fmt.Errorf("'%s' is not a valid url", errFldPrep(strings.TrimSpace(val)))
 			if req || !ignErrs {
 				panic(locErr)
 			} else {
