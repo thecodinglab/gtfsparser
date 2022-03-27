@@ -20,6 +20,6 @@ type Trip struct {
 	Wheelchair_accessible int8
 	Bikes_allowed         int8
 	StopTimes             StopTimes
-	Frequencies           []Frequency
+	Frequencies           []*Frequency
 	Attributions          []*Attribution
 }

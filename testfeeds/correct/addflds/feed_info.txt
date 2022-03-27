@@ -1,0 +1,2 @@
+feed_publisher_name, feed_publisher_ranking, feed_publisher_url, feed_lang, feed_start_date, feed_end_date,feed_version,feed_contact_email, feed_contact_url
+Pub1, 10.0, http://www.gurr.de,de,20190102,20190103,test,info@test.de,http://www.test.de/

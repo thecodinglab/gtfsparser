@@ -12,10 +12,20 @@ import (
 	"strings"
 )
 
+type HeaderIdx map[string]int
+
+func (d HeaderIdx) GetFldId(key string) (result int) {
+	if v, ok := d[key]; ok {
+		return v
+	} else {
+		return -1
+	}
+}
+
 // CsvParser is a wrapper around csv.Reader
 type CsvParser struct {
 	header     []string
-	headeridx  map[string]int
+	headeridx  HeaderIdx
 	ret        map[string]string
 	reader     *csv.Reader
 	Curline    int
@@ -38,7 +48,7 @@ func NewCsvParser(file io.Reader, silentfail bool) CsvParser {
 
 // ParseRecord reads a single line into a map
 func (p *CsvParser) ParseRecord() map[string]string {
-	l := p.parseCsvLine()
+	l := p.ParseCsvLine()
 
 	if l == nil {
 		return nil
@@ -55,7 +65,7 @@ func (p *CsvParser) ParseRecord() map[string]string {
 	return p.ret
 }
 
-func (p *CsvParser) parseCsvLine() []string {
+func (p *CsvParser) ParseCsvLine() []string {
 	record, err := p.reader.Read()
 
 	// TODO: this does not capture empty CSV lines and comments, as they are skipped
@@ -98,12 +108,14 @@ func (p *CsvParser) parseCsvLine() []string {
 }
 
 func (p *CsvParser) parseHeader() {
-	rec := p.parseCsvLine()
+	rec := p.ParseCsvLine()
 	p.header = make([]string, len(rec))
+	p.headeridx = make(HeaderIdx, len(rec))
 	p.ret = make(map[string]string, len(rec))
 	copy(p.header, rec)
 
-	for _, header := range rec {
+	for i, header := range rec {
 		p.ret[header] = ""
+		p.headeridx[header] = i
 	}
 }

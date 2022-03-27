@@ -48,6 +48,7 @@ type ParseOptions struct {
 	ZipFix               bool
 	ShowWarnings         bool
 	DropShapes           bool
+	KeepAddFlds          bool
 	DateFilterStart      gtfs.Date
 	DateFilterEnd        gtfs.Date
 	PolygonFilter        [][][]float64
@@ -85,6 +86,21 @@ type Feed struct {
 	Transfers      []*gtfs.Transfer
 	FeedInfos      []*gtfs.FeedInfo
 
+	StopsAddFlds          map[string]map[string]string
+	AgenciesAddFlds       map[string]map[string]string
+	RoutesAddFlds         map[string]map[string]string
+	TripsAddFlds          map[string]map[string]string
+	StopTimesAddFlds      map[string]map[string]map[int]string
+	FrequenciesAddFlds    map[string]map[string]map[*gtfs.Frequency]string
+	ShapesAddFlds         map[string]map[string]map[int]string
+	FareRulesAddFlds      map[string]map[string]map[*gtfs.FareAttributeRule]string
+	LevelsAddFlds         map[string]map[string]string
+	PathwaysAddFlds       map[string]map[string]string
+	FareAttributesAddFlds map[string]map[string]string
+	TransfersAddFlds      map[string]map[*gtfs.Transfer]string
+	FeedInfosAddFlds      map[string]map[*gtfs.FeedInfo]string
+	AttributionsAddFlds   map[string]map[*gtfs.Attribution]string
+
 	// this only holds feed-wide attributions
 	Attributions []*gtfs.Attribution
 
@@ -102,20 +118,34 @@ type Feed struct {
 // NewFeed creates a new, empty feed
 func NewFeed() *Feed {
 	g := Feed{
-		Agencies:       make(map[string]*gtfs.Agency),
-		Stops:          make(map[string]*gtfs.Stop),
-		Routes:         make(map[string]*gtfs.Route),
-		Trips:          make(map[string]*gtfs.Trip),
-		Services:       make(map[string]*gtfs.Service),
-		FareAttributes: make(map[string]*gtfs.FareAttribute),
-		Shapes:         make(map[string]*gtfs.Shape),
-		Levels:         make(map[string]*gtfs.Level),
-		Pathways:       make(map[string]*gtfs.Pathway),
-		Transfers:      make([]*gtfs.Transfer, 0),
-		FeedInfos:      make([]*gtfs.FeedInfo, 0),
-		ErrorStats:     ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-		NumShpPoints:   0,
-		opts:           ParseOptions{false, false, false, false, "", false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([][][]float64, 0)},
+		Agencies:              make(map[string]*gtfs.Agency),
+		Stops:                 make(map[string]*gtfs.Stop),
+		Routes:                make(map[string]*gtfs.Route),
+		Trips:                 make(map[string]*gtfs.Trip),
+		Services:              make(map[string]*gtfs.Service),
+		FareAttributes:        make(map[string]*gtfs.FareAttribute),
+		Shapes:                make(map[string]*gtfs.Shape),
+		Levels:                make(map[string]*gtfs.Level),
+		Pathways:              make(map[string]*gtfs.Pathway),
+		Transfers:             make([]*gtfs.Transfer, 0),
+		FeedInfos:             make([]*gtfs.FeedInfo, 0),
+		StopsAddFlds:          make(map[string]map[string]string),
+		StopTimesAddFlds:      make(map[string]map[string]map[int]string),
+		FrequenciesAddFlds:    make(map[string]map[string]map[*gtfs.Frequency]string),
+		ShapesAddFlds:         make(map[string]map[string]map[int]string),
+		AgenciesAddFlds:       make(map[string]map[string]string),
+		RoutesAddFlds:         make(map[string]map[string]string),
+		TripsAddFlds:          make(map[string]map[string]string),
+		LevelsAddFlds:         make(map[string]map[string]string),
+		PathwaysAddFlds:       make(map[string]map[string]string),
+		FareAttributesAddFlds: make(map[string]map[string]string),
+		FareRulesAddFlds:      make(map[string]map[string]map[*gtfs.FareAttributeRule]string),
+		TransfersAddFlds:      make(map[string]map[*gtfs.Transfer]string),
+		FeedInfosAddFlds:      make(map[string]map[*gtfs.FeedInfo]string),
+		AttributionsAddFlds:   make(map[string]map[*gtfs.Attribution]string),
+		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		NumShpPoints:          0,
+		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([][][]float64, 0)},
 	}
 	return &g
 }
@@ -163,7 +193,6 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if e == nil {
 		e = feed.parseCalendarDates(path, prefix)
 	}
-
 	if e == nil {
 		e = feed.parseTrips(path, prefix)
 	}
@@ -280,9 +309,25 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		agency, e := createAgency(record, feed, prefix)
+	var record []string
+	flds := AgencyFields{
+		agencyId:       reader.headeridx.GetFldId("agency_id"),
+		agencyName:     reader.headeridx.GetFldId("agency_name"),
+		agencyUrl:      reader.headeridx.GetFldId("agency_url"),
+		agencyTimezone: reader.headeridx.GetFldId("agency_timezone"),
+		agencyLang:     reader.headeridx.GetFldId("agency_lang"),
+		agencyPhone:    reader.headeridx.GetFldId("agency_phone"),
+		agencyFareUrl:  reader.headeridx.GetFldId("agency_fare_url"),
+		agencyEmail:    reader.headeridx.GetFldId("agency_email"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		agency, e := createAgency(record, flds, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Agencies[agency.Id]; ok {
 				e = errors.New("ID collision, agency_id '" + agency.Id + "' already used.")
@@ -313,6 +358,16 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 		}
 
 		feed.Agencies[agency.Id] = agency
+
+		for _, i := range addFlds {
+			if i < len(record) {
+				if _, ok := feed.AgenciesAddFlds[reader.header[i]]; !ok {
+					feed.AgenciesAddFlds[reader.header[i]] = make(map[string]string)
+				}
+
+				feed.AgenciesAddFlds[reader.header[i]][agency.Id] = record[i]
+			}
+		}
 	}
 
 	feed.ColOrders.Agencies = append([]string(nil), reader.header...)
@@ -335,10 +390,33 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 		}
 	}()
 
-	var record map[string]string
+	var record []string
+	flds := StopFields{
+		stopId:             reader.headeridx.GetFldId("stop_id"),
+		stopCode:           reader.headeridx.GetFldId("stop_code"),
+		locationType:       reader.headeridx.GetFldId("location_type"),
+		stopName:           reader.headeridx.GetFldId("stop_name"),
+		stopDesc:           reader.headeridx.GetFldId("stop_desc"),
+		stopLat:            reader.headeridx.GetFldId("stop_lat"),
+		stopLon:            reader.headeridx.GetFldId("stop_lon"),
+		zoneId:             reader.headeridx.GetFldId("zone_id"),
+		stopUrl:            reader.headeridx.GetFldId("stop_url"),
+		parentStation:      reader.headeridx.GetFldId("parent_station"),
+		stopTimezone:       reader.headeridx.GetFldId("stop_timezone"),
+		levelId:            reader.headeridx.GetFldId("level_id"),
+		platformCode:       reader.headeridx.GetFldId("platform_code"),
+		wheelchairBoarding: reader.headeridx.GetFldId("wheelchair_boarding"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
 	parentStopIds := make(map[string]string, 0)
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		stop, parentId, e := createStop(record, feed, prefix)
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		stop, parentId, e := createStop(record, flds, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Stops[stop.Id]; ok {
 				e = errors.New("ID collision, stop_id '" + stop.Id + "' already used.")
@@ -376,6 +454,16 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 		}
 
 		feed.Stops[stop.Id] = stop
+
+		for _, i := range addFlds {
+			if i < len(record) {
+				if _, ok := feed.StopsAddFlds[reader.header[i]]; !ok {
+					feed.StopsAddFlds[reader.header[i]] = make(map[string]string)
+				}
+
+				feed.StopsAddFlds[reader.header[i]][stop.Id] = record[i]
+			}
+		}
 	}
 
 	feed.ColOrders.Stops = append([]string(nil), reader.header...)
@@ -455,9 +543,30 @@ func (feed *Feed) parseRoutes(path string, prefix string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		route, e := createRoute(record, feed, prefix)
+	var record []string
+	flds := RouteFields{
+		routeId:           reader.headeridx.GetFldId("route_id"),
+		agencyId:          reader.headeridx.GetFldId("agency_id"),
+		routeShortName:    reader.headeridx.GetFldId("route_short_name"),
+		routeLongName:     reader.headeridx.GetFldId("route_long_name"),
+		routeDesc:         reader.headeridx.GetFldId("route_desc"),
+		routeType:         reader.headeridx.GetFldId("route_type"),
+		routeUrl:          reader.headeridx.GetFldId("route_url"),
+		routeColor:        reader.headeridx.GetFldId("route_color"),
+		routeTextColor:    reader.headeridx.GetFldId("route_text_color"),
+		routeSortOrder:    reader.headeridx.GetFldId("route_sort_order"),
+		continuousDropOff: reader.headeridx.GetFldId("continuous_drop_off"),
+		continuousPickup:  reader.headeridx.GetFldId("continuous_pickup"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		route, e := createRoute(record, flds, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Routes[route.Id]; ok {
 				e = errors.New("ID collision, route_id '" + route.Id + "' already used.")
@@ -476,6 +585,16 @@ func (feed *Feed) parseRoutes(path string, prefix string) (err error) {
 			feed.Routes[route.Id] = nil
 		} else {
 			feed.Routes[route.Id] = route
+
+			for _, i := range addFlds {
+				if i < len(record) {
+					if _, ok := feed.RoutesAddFlds[reader.header[i]]; !ok {
+						feed.RoutesAddFlds[reader.header[i]] = make(map[string]string)
+					}
+
+					feed.RoutesAddFlds[reader.header[i]][route.Id] = record[i]
+				}
+			}
 		}
 	}
 
@@ -499,9 +618,22 @@ func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		service, e := createServiceFromCalendar(record, feed, prefix)
+	var record []string
+	flds := CalendarFields{
+		serviceId: reader.headeridx.GetFldId("service_id"),
+		monday:    reader.headeridx.GetFldId("monday"),
+		tuesday:   reader.headeridx.GetFldId("tuesday"),
+		wednesday: reader.headeridx.GetFldId("wednesday"),
+		thursday:  reader.headeridx.GetFldId("thursday"),
+		friday:    reader.headeridx.GetFldId("friday"),
+		saturday:  reader.headeridx.GetFldId("saturday"),
+		sunday:    reader.headeridx.GetFldId("sunday"),
+		startDate: reader.headeridx.GetFldId("start_date"),
+		endDate:   reader.headeridx.GetFldId("end_date"),
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		service, e := createServiceFromCalendar(record, flds, feed, prefix)
 
 		if e != nil {
 			if feed.opts.DropErroneous {
@@ -568,9 +700,15 @@ func (feed *Feed) parseCalendarDates(path string, prefix string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		service, e := createServiceFromCalendarDates(record, feed, feed.opts.DateFilterStart, feed.opts.DateFilterEnd, prefix)
+	var record []string
+	flds := CalendarDatesFields{
+		serviceId:     reader.headeridx.GetFldId("service_id"),
+		exceptionType: reader.headeridx.GetFldId("exception_type"),
+		date:          reader.headeridx.GetFldId("date"),
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		service, e := createServiceFromCalendarDates(record, flds, feed, feed.opts.DateFilterStart, feed.opts.DateFilterEnd, prefix)
 
 		if e != nil {
 			if feed.opts.DropErroneous {
@@ -612,9 +750,28 @@ func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		trip, e := createTrip(record, feed, prefix)
+	var record []string
+	flds := TripFields{
+		tripId:               reader.headeridx.GetFldId("trip_id"),
+		routeId:              reader.headeridx.GetFldId("route_id"),
+		serviceId:            reader.headeridx.GetFldId("service_id"),
+		tripHeadsign:         reader.headeridx.GetFldId("trip_headsign"),
+		tripShortName:        reader.headeridx.GetFldId("trip_short_name"),
+		directionId:          reader.headeridx.GetFldId("direction_id"),
+		blockId:              reader.headeridx.GetFldId("block_id"),
+		shapeId:              reader.headeridx.GetFldId("shape_id"),
+		wheelchairAccessible: reader.headeridx.GetFldId("wheelchair_accessible"),
+		bikesAllowed:         reader.headeridx.GetFldId("bikes_allowed"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		trip, e := createTrip(record, flds, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Trips[trip.Id]; ok {
 				e = errors.New("ID collision, trip_id '" + trip.Id + "' already used.")
@@ -630,6 +787,16 @@ func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 			}
 		}
 		feed.Trips[trip.Id] = trip
+
+		for _, i := range addFlds {
+			if i < len(record) {
+				if _, ok := feed.TripsAddFlds[reader.header[i]]; !ok {
+					feed.TripsAddFlds[reader.header[i]] = make(map[string]string)
+				}
+
+				feed.TripsAddFlds[reader.header[i]][trip.Id] = record[i]
+			}
+		}
 	}
 
 	feed.ColOrders.Trips = append([]string(nil), reader.header...)
@@ -655,9 +822,22 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createShapePoint(record, feed, prefix)
+	var record []string
+	flds := ShapeFields{
+		shapeId:           reader.headeridx.GetFldId("shape_id"),
+		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled"),
+		shapePtLat:        reader.headeridx.GetFldId("shape_pt_lat"),
+		shapePtLon:        reader.headeridx.GetFldId("shape_pt_lon"),
+		shapePtSequence:   reader.headeridx.GetFldId("shape_pt_sequence"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		shape, sp, e := createShapePoint(record, flds, feed, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedShapes++
@@ -665,6 +845,19 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 				continue
 			} else {
 				panic(e)
+			}
+		} else {
+			for _, i := range addFlds {
+				if i < len(record) {
+					if _, ok := feed.ShapesAddFlds[reader.header[i]]; !ok {
+						feed.ShapesAddFlds[reader.header[i]] = make(map[string]map[int]string)
+					}
+					if _, ok := feed.ShapesAddFlds[reader.header[i]][shape.Id]; !ok {
+						feed.ShapesAddFlds[reader.header[i]][shape.Id] = make(map[int]string)
+					}
+
+					feed.ShapesAddFlds[reader.header[i]][shape.Id][sp.Sequence] = record[i]
+				}
 			}
 		}
 	}
@@ -717,9 +910,29 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createStopTime(record, feed, prefix)
+	var record []string
+	flds := StopTimeFields{
+		tripId:            reader.headeridx.GetFldId("trip_id"),
+		stopId:            reader.headeridx.GetFldId("stop_id"),
+		arrivalTime:       reader.headeridx.GetFldId("arrival_time"),
+		departureTime:     reader.headeridx.GetFldId("departure_time"),
+		stopSequence:      reader.headeridx.GetFldId("stop_sequence"),
+		stopHeadsign:      reader.headeridx.GetFldId("stop_headsign"),
+		pickupType:        reader.headeridx.GetFldId("pickup_type"),
+		dropOffType:       reader.headeridx.GetFldId("drop_off_type"),
+		continuousDropOff: reader.headeridx.GetFldId("continuous_drop_off"),
+		continuousPickup:  reader.headeridx.GetFldId("continuous_pickup"),
+		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled"),
+		timepoint:         reader.headeridx.GetFldId("timepoint"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		trip, st, e := createStopTime(record, flds, feed, prefix)
 
 		if e != nil {
 			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
@@ -736,6 +949,19 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 				continue
 			} else {
 				panic(e)
+			}
+		} else {
+			for _, i := range addFlds {
+				if i < len(record) {
+					if _, ok := feed.StopTimesAddFlds[reader.header[i]]; !ok {
+						feed.StopTimesAddFlds[reader.header[i]] = make(map[string]map[int]string)
+					}
+					if _, ok := feed.StopTimesAddFlds[reader.header[i]][trip.Id]; !ok {
+						feed.StopTimesAddFlds[reader.header[i]][trip.Id] = make(map[int]string)
+					}
+
+					feed.StopTimesAddFlds[reader.header[i]][trip.Id][st.Sequence] = record[i]
+				}
 			}
 		}
 	}
@@ -774,9 +1000,23 @@ func (feed *Feed) parseFrequencies(path string, prefix string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createFrequency(record, feed, prefix)
+	var record []string
+	flds := FrequencyFields{
+		tripId:      reader.headeridx.GetFldId("trip_id"),
+		exactTimes:  reader.headeridx.GetFldId("exact_times"),
+		startTime:   reader.headeridx.GetFldId("start_time"),
+		endTime:     reader.headeridx.GetFldId("end_time"),
+		headwaySecs: reader.headeridx.GetFldId("headway_secs"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		trip, freq, e := createFrequency(record, flds, feed, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedFrequencies++
@@ -784,6 +1024,19 @@ func (feed *Feed) parseFrequencies(path string, prefix string) (err error) {
 				continue
 			} else {
 				panic(e)
+			}
+		}
+
+		for _, i := range addFlds {
+			if i < len(record) {
+				if _, ok := feed.FrequenciesAddFlds[reader.header[i]]; !ok {
+					feed.FrequenciesAddFlds[reader.header[i]] = make(map[string]map[*gtfs.Frequency]string)
+				}
+				if _, ok := feed.FrequenciesAddFlds[reader.header[i]][trip.Id]; !ok {
+					feed.FrequenciesAddFlds[reader.header[i]][trip.Id] = make(map[*gtfs.Frequency]string)
+				}
+
+				feed.FrequenciesAddFlds[reader.header[i]][trip.Id][freq] = record[i]
 			}
 		}
 	}
@@ -807,9 +1060,25 @@ func (feed *Feed) parseFareAttributes(path string, prefix string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		fa, e := createFareAttribute(record, feed, prefix)
+	var record []string
+	flds := FareAttributeFields{
+		fareId:           reader.headeridx.GetFldId("fare_id"),
+		price:            reader.headeridx.GetFldId("price"),
+		currencyType:     reader.headeridx.GetFldId("currency_type"),
+		paymentMethod:    reader.headeridx.GetFldId("payment_method"),
+		transfers:        reader.headeridx.GetFldId("transfers"),
+		transferDuration: reader.headeridx.GetFldId("transfer_duration"),
+		agencyId:         reader.headeridx.GetFldId("agency_id"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		fa, e := createFareAttribute(record, flds, feed, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedFareAttributes++
@@ -820,6 +1089,16 @@ func (feed *Feed) parseFareAttributes(path string, prefix string) (err error) {
 			}
 		}
 		feed.FareAttributes[fa.Id] = fa
+
+		for _, i := range addFlds {
+			if i < len(record) {
+				if _, ok := feed.FareAttributesAddFlds[reader.header[i]]; !ok {
+					feed.FareAttributesAddFlds[reader.header[i]] = make(map[string]string)
+				}
+
+				feed.FareAttributesAddFlds[reader.header[i]][fa.Id] = record[i]
+			}
+		}
 	}
 
 	feed.ColOrders.FareAttributes = append([]string(nil), reader.header...)
@@ -841,9 +1120,23 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string) (err error
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		e := createFareRule(record, feed, prefix)
+	var record []string
+	flds := FareRuleFields{
+		fareId:        reader.headeridx.GetFldId("fare_id"),
+		routeId:       reader.headeridx.GetFldId("route_id"),
+		originId:      reader.headeridx.GetFldId("origin_id"),
+		destinationId: reader.headeridx.GetFldId("destination_id"),
+		containsId:    reader.headeridx.GetFldId("contains_id"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		fare, rule, e := createFareRule(record, flds, feed, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedFareAttributeRules++
@@ -852,6 +1145,20 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string) (err error
 			} else {
 				panic(e)
 			}
+		} else {
+			for _, i := range addFlds {
+				if i < len(record) {
+					if _, ok := feed.FareRulesAddFlds[reader.header[i]]; !ok {
+						feed.FareRulesAddFlds[reader.header[i]] = make(map[string]map[*gtfs.FareAttributeRule]string)
+					}
+					if _, ok := feed.FareRulesAddFlds[reader.header[i]][fare.Id]; !ok {
+						feed.FareRulesAddFlds[reader.header[i]][fare.Id] = make(map[*gtfs.FareAttributeRule]string)
+					}
+
+					feed.FareRulesAddFlds[reader.header[i]][fare.Id][rule] = record[i]
+				}
+			}
+
 		}
 	}
 
@@ -877,9 +1184,21 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		t, e := createTransfer(record, feed, prefix)
+	var record []string
+	flds := TransferFields{
+		FromStopId:      reader.headeridx.GetFldId("from_stop_id"),
+		ToStopId:        reader.headeridx.GetFldId("to_stop_id"),
+		TransferType:    reader.headeridx.GetFldId("transfer_type"),
+		MinTransferTime: reader.headeridx.GetFldId("min_transfer_time"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		t, e := createTransfer(record, flds, feed, prefix)
 		if e != nil {
 			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
 			wasFiltered := false
@@ -900,6 +1219,18 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 		if !feed.opts.DryRun {
 			if _, ok := inserted[*t]; !ok {
 				feed.Transfers = append(feed.Transfers, t)
+
+				// add additional CSV fields
+				for _, i := range addFlds {
+					if i < len(record) {
+						if _, ok := feed.TransfersAddFlds[reader.header[i]]; !ok {
+							feed.TransfersAddFlds[reader.header[i]] = make(map[*gtfs.Transfer]string)
+						}
+
+						feed.TransfersAddFlds[reader.header[i]][t] = record[i]
+					}
+				}
+
 				inserted[*t] = true
 			}
 		}
@@ -924,9 +1255,30 @@ func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[stri
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		pw, e := createPathway(record, feed, prefix)
+	var record []string
+	flds := PathwayFields{
+		pathwayId:            reader.headeridx.GetFldId("pathway_id"),
+		fromStopId:           reader.headeridx.GetFldId("from_stop_id"),
+		toStopId:             reader.headeridx.GetFldId("to_stop_id"),
+		pathwayMode:          reader.headeridx.GetFldId("pathway_mode"),
+		isBidirectional:      reader.headeridx.GetFldId("is_bidirectional"),
+		length:               reader.headeridx.GetFldId("length"),
+		traversalTime:        reader.headeridx.GetFldId("traversal_time"),
+		stairCount:           reader.headeridx.GetFldId("stair_count"),
+		maxSlope:             reader.headeridx.GetFldId("max_slope"),
+		minWidth:             reader.headeridx.GetFldId("min_width"),
+		signpostedAs:         reader.headeridx.GetFldId("signposted_as"),
+		reversedSignpostedAs: reader.headeridx.GetFldId("reversed_signposted_as"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		pw, e := createPathway(record, flds, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Pathways[pw.Id]; ok {
 				e = errors.New("ID collision, pathway_id '" + pw.Id + "' already used.")
@@ -950,6 +1302,16 @@ func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[stri
 			}
 		}
 		feed.Pathways[pw.Id] = pw
+
+		for _, i := range addFlds {
+			if i < len(record) {
+				if _, ok := feed.PathwaysAddFlds[reader.header[i]]; !ok {
+					feed.PathwaysAddFlds[reader.header[i]] = make(map[string]string)
+				}
+
+				feed.PathwaysAddFlds[reader.header[i]][pw.Id] = record[i]
+			}
+		}
 	}
 
 	feed.ColOrders.Pathways = append([]string(nil), reader.header...)
@@ -973,9 +1335,29 @@ func (feed *Feed) parseAttributions(path string, prefix string) (err error) {
 
 	ids := make(map[string]bool)
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		attr, ag, route, trip, e := createAttribution(record, feed, prefix)
+	var record []string
+	flds := AttributionFields{
+		attributionId:    reader.headeridx.GetFldId("attribution_id"),
+		organizationName: reader.headeridx.GetFldId("organization_name"),
+		isProducer:       reader.headeridx.GetFldId("is_producer"),
+		isOperator:       reader.headeridx.GetFldId("is_operator"),
+		isAuthority:      reader.headeridx.GetFldId("is_authority"),
+		attributionUrl:   reader.headeridx.GetFldId("attribution_url"),
+		attributionEmail: reader.headeridx.GetFldId("attribution_email"),
+		attributionPhone: reader.headeridx.GetFldId("attribution_phone"),
+		routeId:          reader.headeridx.GetFldId("route_id"),
+		agencyId:         reader.headeridx.GetFldId("agency_id"),
+		tripId:           reader.headeridx.GetFldId("trip_id"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		attr, ag, route, trip, e := createAttribution(record, flds, feed, prefix)
 		if e == nil {
 			if _, ok := ids[attr.Id]; ok {
 				e = errors.New("ID collision, attribution_id '" + attr.Id + "' already used.")
@@ -1003,6 +1385,16 @@ func (feed *Feed) parseAttributions(path string, prefix string) (err error) {
 			// add it to feed-wide
 			feed.Attributions = append(feed.Attributions, attr)
 		}
+
+		for _, i := range addFlds {
+			if i < len(record) {
+				if _, ok := feed.AttributionsAddFlds[reader.header[i]]; !ok {
+					feed.AttributionsAddFlds[reader.header[i]] = make(map[*gtfs.Attribution]string)
+				}
+
+				feed.AttributionsAddFlds[reader.header[i]][attr] = record[i]
+			}
+		}
 	}
 
 	feed.ColOrders.Attributions = append([]string(nil), reader.header...)
@@ -1024,9 +1416,20 @@ func (feed *Feed) parseLevels(path string, idprefix string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		lvl, e := createLevel(record, feed, idprefix)
+	var record []string
+	flds := LevelFields{
+		levelId:    reader.headeridx.GetFldId("level_id"),
+		levelIndex: reader.headeridx.GetFldId("level_index"),
+		levelName:  reader.headeridx.GetFldId("level_name"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		lvl, e := createLevel(record, flds, feed, idprefix)
 		if e == nil {
 			if _, ok := feed.Levels[lvl.Id]; ok {
 				e = errors.New("ID collision, level_id '" + lvl.Id + "' already used.")
@@ -1043,6 +1446,16 @@ func (feed *Feed) parseLevels(path string, idprefix string) (err error) {
 			}
 		}
 		feed.Levels[lvl.Id] = lvl
+
+		for _, i := range addFlds {
+			if i < len(record) {
+				if _, ok := feed.LevelsAddFlds[reader.header[i]]; !ok {
+					feed.LevelsAddFlds[reader.header[i]] = make(map[string]string)
+				}
+
+				feed.LevelsAddFlds[reader.header[i]][lvl.Id] = record[i]
+			}
+		}
 	}
 
 	feed.ColOrders.Levels = append([]string(nil), reader.header...)
@@ -1064,9 +1477,26 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 		}
 	}()
 
-	var record map[string]string
-	for record = reader.ParseRecord(); record != nil; record = reader.ParseRecord() {
-		fi, e := createFeedInfo(record, feed)
+	var record []string
+	flds := FeedInfoFields{
+		feedPublisherName: reader.headeridx.GetFldId("feed_publisher_name"),
+		feedPublisherUrl:  reader.headeridx.GetFldId("feed_publisher_url"),
+		feedLang:          reader.headeridx.GetFldId("feed_lang"),
+		feedStartDate:     reader.headeridx.GetFldId("feed_start_date"),
+		feedEndDate:       reader.headeridx.GetFldId("feed_end_date"),
+		feedVersion:       reader.headeridx.GetFldId("feed_version"),
+		feedContactEmail:  reader.headeridx.GetFldId("feed_contact_email"),
+		feedContactUrl:    reader.headeridx.GetFldId("feed_contact_url"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		fi, e := createFeedInfo(record, flds, feed)
 		if e != nil {
 			if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedFeedInfos++
@@ -1077,6 +1507,15 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 			}
 		}
 		if !feed.opts.DryRun {
+			for _, i := range addFlds {
+				if i < len(record) {
+					if _, ok := feed.FeedInfosAddFlds[reader.header[i]]; !ok {
+						feed.FeedInfosAddFlds[reader.header[i]] = make(map[*gtfs.FeedInfo]string)
+					}
+
+					feed.FeedInfosAddFlds[reader.header[i]][fi] = record[i]
+				}
+			}
 			feed.FeedInfos = append(feed.FeedInfos, fi)
 		}
 	}
@@ -1256,4 +1695,83 @@ func (feed *Feed) warn(e error) {
 	if feed.opts.ShowWarnings {
 		fmt.Fprintln(os.Stderr, "WARNING: "+e.Error())
 	}
+}
+
+func (feed *Feed) DeleteFareAttribute(id string) {
+	delete(feed.FareAttributes, id)
+
+	// delete additional fields from CSV
+	for k, _ := range feed.FareRulesAddFlds {
+		delete(feed.FareRulesAddFlds[k], id)
+	}
+
+	for k, _ := range feed.FareAttributesAddFlds {
+		delete(feed.FareAttributesAddFlds[k], id)
+	}
+}
+
+func (feed *Feed) DeleteTrip(id string) {
+	delete(feed.Trips, id)
+
+	// delete additional fields from CSV
+	for k, _ := range feed.TripsAddFlds {
+		delete(feed.TripsAddFlds[k], id)
+	}
+
+	for k, _ := range feed.StopTimesAddFlds {
+		delete(feed.StopTimesAddFlds[k], id)
+	}
+
+	for k, _ := range feed.FrequenciesAddFlds {
+		delete(feed.FrequenciesAddFlds[k], id)
+	}
+}
+
+func (feed *Feed) DeleteShape(id string) {
+	delete(feed.Shapes, id)
+
+	// delete additional fields from CSV
+	for k, _ := range feed.ShapesAddFlds {
+		delete(feed.ShapesAddFlds[k], id)
+	}
+}
+
+func (feed *Feed) DeleteAgency(id string) {
+	delete(feed.Agencies, id)
+
+	// delete additional fields from CSV
+	for k, _ := range feed.AgenciesAddFlds {
+		delete(feed.AgenciesAddFlds[k], id)
+	}
+}
+
+func (feed *Feed) DeleteRoute(id string) {
+	delete(feed.Routes, id)
+
+	// delete additional fields from CSV
+	for k, _ := range feed.RoutesAddFlds {
+		delete(feed.RoutesAddFlds[k], id)
+	}
+}
+
+func (feed *Feed) DeleteLevel(id string) {
+	delete(feed.Levels, id)
+
+	// delete additional fields from CSV
+	for k, _ := range feed.LevelsAddFlds {
+		delete(feed.LevelsAddFlds[k], id)
+	}
+}
+
+func (feed *Feed) DeleteStop(id string) {
+	delete(feed.Stops, id)
+
+	// delete additional fields from CSV
+	for k, _ := range feed.StopsAddFlds {
+		delete(feed.StopsAddFlds[k], id)
+	}
+}
+
+func (feed *Feed) DeleteService(id string) {
+	delete(feed.Services, id)
 }

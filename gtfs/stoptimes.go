@@ -20,6 +20,8 @@ type StopTime struct {
 	Headsign            string
 	Pickup_type         int8
 	Drop_off_type       int8
+	Continuous_pickup   int8
+	Continuous_drop_off int8
 	Shape_dist_traveled float32
 	Timepoint           bool
 }

@@ -71,4 +71,28 @@ func TestFeedParsing(t *testing.T) {
 		t.Error(e)
 		return
 	}
+
+	feedCorAddFlds := NewFeed()
+	feedCorAddFlds.SetParseOpts(ParseOptions{UseDefValueOnError: false, DropErroneous: false, DryRun: false, KeepAddFlds: true})
+
+	e = feedCorAddFlds.Parse("./testfeeds/correct/addflds")
+
+	if e != nil {
+		t.Error(e)
+		return
+	}
+
+	if len(feedCorAddFlds.Agencies) != 1 {
+		t.Error("expected on agency")
+		return
+	}
+
+	a := feedCorAddFlds.Agencies["DTA"]
+	if feedCorAddFlds.AgenciesAddFlds["testfield"][a.Id] != "testvalue" {
+		t.Error("Wrong value for <testfield>")
+	}
+
+	if feedCorAddFlds.ShapesAddFlds["testfield_shp"]["B_shp"][5] != "b" {
+		t.Error("Wrong value for <testfield>")
+	}
 }
