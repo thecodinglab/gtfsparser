@@ -70,6 +70,8 @@ type ErrStats struct {
 	DroppedPathways           int
 	DroppedTransfers          int
 	DroppedFeedInfos          int
+	DroppedTranslations       int
+	NumTranslations           int
 }
 
 // Feed represents a single GTFS feed
@@ -100,6 +102,7 @@ type Feed struct {
 	TransfersAddFlds      map[string]map[*gtfs.Transfer]string
 	FeedInfosAddFlds      map[string]map[*gtfs.FeedInfo]string
 	AttributionsAddFlds   map[string]map[*gtfs.Attribution]string
+	TranslationsAddFlds   map[string]map[*gtfs.Translation]string
 
 	// this only holds feed-wide attributions
 	Attributions []*gtfs.Attribution
@@ -143,7 +146,7 @@ func NewFeed() *Feed {
 		TransfersAddFlds:      make(map[string]map[*gtfs.Transfer]string),
 		FeedInfosAddFlds:      make(map[string]map[*gtfs.FeedInfo]string),
 		AttributionsAddFlds:   make(map[string]map[*gtfs.Attribution]string),
-		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		NumShpPoints:          0,
 		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([][][]float64, 0)},
 	}
@@ -217,6 +220,9 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if e == nil {
 		e = feed.parseAttributions(path, prefix)
 	}
+	// if e == nil {
+	// e = feed.parseTranslations(path, prefix)
+	// }
 
 	// close open readers
 	if feed.zipFileCloser != nil {
@@ -1315,6 +1321,67 @@ func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[stri
 	}
 
 	feed.ColOrders.Pathways = append([]string(nil), reader.header...)
+
+	return e
+}
+
+func (feed *Feed) parseTranslations(path string, prefix string) (err error) {
+	file, e := feed.getFile(path, "translations.txt")
+
+	if e != nil {
+		return nil
+	}
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = ParseError{"translations.txt", reader.Curline, r.(error).Error()}
+		}
+	}()
+
+	var record []string
+	flds := TranslationFields{
+		tableName:   reader.headeridx.GetFldId("table_name"),
+		fieldName:   reader.headeridx.GetFldId("field_name"),
+		language:    reader.headeridx.GetFldId("language"),
+		translation: reader.headeridx.GetFldId("translation"),
+		recordId:    reader.headeridx.GetFldId("record_id"),
+		recordSubId: reader.headeridx.GetFldId("record_sub_id"),
+		fieldValue:  reader.headeridx.GetFldId("field_value"),
+	}
+
+	addFlds := make([]int, 0)
+
+	if feed.opts.KeepAddFlds {
+		addFlds = addiFields(reader.header, flds)
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		trans, e := createTranslation(record, flds, feed, prefix)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedTranslations++
+				feed.warn(e)
+				continue
+			} else {
+				panic(e)
+			}
+		}
+
+		feed.ErrorStats.NumTranslations++
+
+		for _, i := range addFlds {
+			if i < len(record) {
+				if _, ok := feed.TranslationsAddFlds[reader.header[i]]; !ok {
+					feed.TranslationsAddFlds[reader.header[i]] = make(map[*gtfs.Translation]string)
+				}
+
+				feed.TranslationsAddFlds[reader.header[i]][trans] = record[i]
+			}
+		}
+	}
+
+	feed.ColOrders.Attributions = append([]string(nil), reader.header...)
 
 	return e
 }

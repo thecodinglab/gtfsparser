@@ -22,4 +22,5 @@ type Agency struct {
 	Fare_url     *url.URL
 	Email        *mail.Address
 	Attributions []*Attribution
+	Translations []*Translation
 }

@@ -36,6 +36,37 @@ func addiFields(header []string, flds Fields) []int {
 	return a
 }
 
+type TranslationFields struct {
+	tableName   int
+	fieldName   int
+	language    int
+	translation int
+	recordId    int
+	recordSubId int
+	fieldValue  int
+}
+
+func (flds TranslationFields) FldName(idx int) (name string) {
+	switch idx {
+	case flds.tableName:
+		return "table_name"
+	case flds.fieldName:
+		return "field_name"
+	case flds.language:
+		return "language"
+	case flds.translation:
+		return "translation"
+	case flds.recordId:
+		return "record_id"
+	case flds.recordSubId:
+		return "record_sub_id"
+	case flds.fieldValue:
+		return "field_value"
+	default:
+		return ""
+	}
+}
+
 type AttributionFields struct {
 	attributionId    int
 	organizationName int
@@ -595,6 +626,69 @@ func (e *StopNotFoundErr) Error() string {
 
 func (e *StopNotFoundErr) StopId() string {
 	return e.prefix + e.sid
+}
+
+func createTranslation(r []string, flds TranslationFields, feed *Feed, prefix string) (attr *gtfs.Translation, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+
+	tr := new(gtfs.Translation)
+	tr.FieldName = getString(flds.fieldName, r, flds, true, true, "")
+	tr.Translation = getString(flds.translation, r, flds, true, true, "")
+	tr.FieldValue = getString(flds.fieldValue, r, flds, false, false, "")
+	tr.Language = getIsoLangCode(flds.language, r, flds, false, false, feed)
+
+	tableName := getString(flds.tableName, r, flds, true, true, "")
+
+	if !feed.opts.DryRun && !(tableName == "agency" || tableName == "stops" || tableName == "routes" || tableName == "trips" || tableName == "stop_times" || tableName == "feed_info" || tableName == "pathways" || tableName == "attributions" || tableName == "levels") {
+		panic(fmt.Errorf("table_name must be one of: 'agency', 'stops', 'routes', 'trips', 'stop_times', 'feed_info', 'pathways', 'attributions', 'levels' (found '%s')", tableName))
+	}
+
+	strings.Replace(strings.ToLower(tableName), ".txt", "", 1)
+
+	id := getString(flds.recordId, r, flds, false, false, "")
+	// subId := getString(flds.recordSubId, r, flds, false, false, "")
+
+	if len(id) > 0 {
+		if tableName == "agency" {
+			if ag, ok := feed.Agencies[prefix+id]; ok {
+				ag.Translations = append(ag.Translations, tr)
+			} else {
+				panic(fmt.Errorf("No agency with id %s found", id))
+			}
+		} else if tableName == "stops" {
+			if st, ok := feed.Stops[prefix+id]; ok {
+				st.Translations = append(st.Translations, tr)
+			} else {
+				panic(fmt.Errorf("No stop with id %s found", id))
+			}
+		} else if tableName == "trips" {
+			if trip, ok := feed.Trips[prefix+id]; ok {
+				trip.Translations = append(trip.Translations, tr)
+			} else {
+				panic(fmt.Errorf("No trip with id %s found", id))
+			}
+		} else if tableName == "feed_info" {
+			panic(fmt.Errorf("Cannot use record_id for table_name 'feed_info'"))
+		} else if tableName == "pathways" {
+			if pw, ok := feed.Pathways[prefix+id]; ok {
+				pw.Translations = append(pw.Translations, tr)
+			} else {
+				panic(fmt.Errorf("No pathway with id %s found", id))
+			}
+		} else if tableName == "levels" {
+			if lvl, ok := feed.Levels[prefix+id]; ok {
+				lvl.Translations = append(lvl.Translations, tr)
+			} else {
+				panic(fmt.Errorf("No level with id %s found", id))
+			}
+		}
+	}
+
+	return tr, nil
 }
 
 func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix string) (attr *gtfs.Attribution, ag *gtfs.Agency, route *gtfs.Route, trip *gtfs.Trip, err error) {

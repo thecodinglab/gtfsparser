@@ -27,6 +27,7 @@ type Stop struct {
 	Wheelchair_boarding int8
 	Level               *Level
 	Platform_code       string
+	Translations        []*Translation
 }
 
 // HasLatLon returns true if this Stop has a latitude and longitude

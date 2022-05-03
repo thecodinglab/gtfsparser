@@ -22,4 +22,5 @@ type Trip struct {
 	StopTimes             StopTimes
 	Frequencies           []*Frequency
 	Attributions          []*Attribution
+	Translations          []*Translation
 }

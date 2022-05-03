@@ -20,4 +20,5 @@ type Pathway struct {
 	Min_width              float32
 	Signposted_as          string
 	Reversed_signposted_as string
+	Translations           []*Translation
 }

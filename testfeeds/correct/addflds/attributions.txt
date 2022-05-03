@@ -1,0 +1,3 @@
+attribution_id,is_producer,is_operator,organization_name,testa,agency_id,somemore
+attribution001,1,0,Transit Feed Solutions USA,1,DTA,aa
+attribution002,0,1,Transit Bus Operations USA,1,,bb
