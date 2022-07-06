@@ -1138,7 +1138,13 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	}
 
 	a.Sequence = getPositiveInt(flds.stopSequence, r, flds, true)
-	a.Headsign = getString(flds.stopHeadsign, r, flds, false, false, "")
+	headsign := getString(flds.stopHeadsign, r, flds, false, false, "")
+
+	// only store headsigns that are different to the default trip headsign
+	if headsign != trip.Headsign {
+		a.Headsign = headsign
+	}
+
 	a.Pickup_type = int8(getRangeInt(flds.pickupType, r, flds, false, 0, 3))
 	a.Drop_off_type = int8(getRangeInt(flds.dropOffType, r, flds, false, 0, 3))
 	a.Continuous_pickup = int8(getRangeIntWithDefault(flds.continuousPickup, r, flds, 0, 3, 1, feed.opts.UseDefValueOnError, feed))
