@@ -206,6 +206,9 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.reserveStopTimes(path, prefix)
 	}
 	if e == nil {
+		e = feed.parseStopTimes(path, prefix, geofilteredStops)
+	}
+	if e == nil {
 		// remove reservation markers
 		for tripId, t := range feed.Trips {
 			if t.Id != tripId {
@@ -213,9 +216,6 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 				t.StopTimes = make(gtfs.StopTimes, 0)
 			}
 		}
-	}
-	if e == nil {
-		e = feed.parseStopTimes(path, prefix, geofilteredStops)
 	}
 	if e == nil {
 		e = feed.parseFareAttributes(path, prefix)
