@@ -1063,6 +1063,25 @@ func createStop(r []string, flds StopFields, feed *Feed, prefix string) (s *gtfs
 	return a, parentId, nil
 }
 
+func reserveStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+	var trip *gtfs.Trip
+
+	if val, ok := feed.Trips[prefix+getString(flds.tripId, r, flds, true, true, "")]; ok {
+		trip = val
+	} else {
+		panic(errors.New("No trip with id " + getString(flds.tripId, r, flds, true, true, "") + " found."))
+	}
+
+	trip.StopTimes[0].Sequence = trip.StopTimes[0].Sequence + 1
+
+	return nil
+}
+
 func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) (t *gtfs.Trip, st *gtfs.StopTime, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1072,10 +1091,17 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	a := gtfs.StopTime{}
 	var trip *gtfs.Trip
 
-	if val, ok := feed.Trips[prefix+getString(flds.tripId, r, flds, true, true, "")]; ok {
+	tripId := prefix + getString(flds.tripId, r, flds, true, true, "")
+
+	if val, ok := feed.Trips[tripId]; ok {
 		trip = val
 	} else {
 		panic(errors.New("No trip with id " + getString(flds.tripId, r, flds, true, true, "") + " found."))
+	}
+
+	if trip.Id != tripId {
+		trip.Id = tripId
+		trip.StopTimes = make(gtfs.StopTimes, 0, trip.StopTimes[0].Sequence)
 	}
 
 	if val, ok := feed.Stops[prefix+getString(flds.stopId, r, flds, true, true, "")]; ok {
@@ -1199,6 +1225,31 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 	return a, nil
 }
 
+func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+
+	shapeID := prefix + getString(flds.shapeId, r, flds, true, true, "")
+	var shape *gtfs.Shape
+
+	if val, ok := feed.Shapes[shapeID]; ok {
+		shape = val
+		shape.Points[0].Sequence = shape.Points[0].Sequence + 1
+	} else {
+		// create new shape
+		shape = new(gtfs.Shape)
+		shape.Points = append(shape.Points, gtfs.ShapePoint{0, 0, 1, 0})
+
+		// push it onto the shape map
+		feed.Shapes[shapeID] = shape
+	}
+
+	return nil
+}
+
 func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (s *gtfs.Shape, sp *gtfs.ShapePoint, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1211,13 +1262,13 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 
 	if val, ok := feed.Shapes[shapeID]; ok {
 		shape = val
-	} else {
-		// create new shape
-		shape = new(gtfs.Shape)
-		shape.Id = shapeID
-		// push it onto the shape map
-		feed.Shapes[shapeID] = shape
+
+		if shape.Id != shapeID {
+			shape.Id = shapeID
+			shape.Points = make(gtfs.ShapePoints, 0, shape.Points[0].Sequence)
+		}
 	}
+
 	dist := getNullableFloat(flds.shapeDistTraveled, r, flds, feed.opts.UseDefValueOnError, feed)
 
 	lat := getFloat(flds.shapePtLat, r, flds, true)

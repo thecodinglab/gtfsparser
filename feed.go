@@ -185,6 +185,9 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseStops(path, prefix, geofilteredStops)
 	}
 	if e == nil {
+		e = feed.reserveShapes(path, prefix)
+	}
+	if e == nil {
 		e = feed.parseShapes(path, prefix)
 	}
 	if e == nil {
@@ -198,6 +201,18 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	}
 	if e == nil {
 		e = feed.parseTrips(path, prefix)
+	}
+	if e == nil {
+		e = feed.reserveStopTimes(path, prefix)
+	}
+	if e == nil {
+		// remove reservation markers
+		for tripId, t := range feed.Trips {
+			if t.Id != tripId {
+				t.Id = tripId
+				t.StopTimes = make(gtfs.StopTimes, 0)
+			}
+		}
 	}
 	if e == nil {
 		e = feed.parseStopTimes(path, prefix, geofilteredStops)
@@ -778,12 +793,19 @@ func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		trip, e := createTrip(record, flds, feed, prefix)
+
+		tripId := ""
+
 		if e == nil {
-			if _, ok := feed.Trips[trip.Id]; ok {
-				e = errors.New("ID collision, trip_id '" + trip.Id + "' already used.")
+			tripId = trip.Id
+			trip.Id = ""
+			dummy := gtfs.StopTime{}
+			dummy.Sequence = 0
+			trip.StopTimes = append(trip.StopTimes, dummy)
+			if _, ok := feed.Trips[tripId]; ok {
+				e = errors.New("ID collision, trip_id '" + tripId + "' already used.")
 			}
-		}
-		if e != nil {
+		} else {
 			if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedTrips++
 				feed.warn(e)
@@ -792,7 +814,7 @@ func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 				panic(e)
 			}
 		}
-		feed.Trips[trip.Id] = trip
+		feed.Trips[tripId] = trip
 
 		for _, i := range addFlds {
 			if i < len(record) {
@@ -800,12 +822,53 @@ func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 					feed.TripsAddFlds[reader.header[i]] = make(map[string]string)
 				}
 
-				feed.TripsAddFlds[reader.header[i]][trip.Id] = record[i]
+				feed.TripsAddFlds[reader.header[i]][tripId] = record[i]
 			}
 		}
 	}
 
 	feed.ColOrders.Trips = append([]string(nil), reader.header...)
+
+	return e
+}
+
+func (feed *Feed) reserveShapes(path string, prefix string) (err error) {
+	if feed.opts.DropShapes {
+		return
+	}
+	file, e := feed.getFile(path, "shapes.txt")
+
+	if e != nil {
+		return nil
+	}
+
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = ParseError{"shapes.txt", reader.Curline, r.(error).Error()}
+		}
+	}()
+
+	var record []string
+	flds := ShapeFields{
+		shapeId:           reader.headeridx.GetFldId("shape_id"),
+		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled"),
+		shapePtLat:        reader.headeridx.GetFldId("shape_pt_lat"),
+		shapePtLon:        reader.headeridx.GetFldId("shape_pt_lon"),
+		shapePtSequence:   reader.headeridx.GetFldId("shape_pt_sequence"),
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		e := reserveShapePoint(record, flds, feed, prefix)
+		if e != nil {
+			if feed.opts.DropErroneous {
+				continue
+			} else {
+				panic(e)
+			}
+		}
+	}
 
 	return e
 }
@@ -897,6 +960,43 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 				feed.Shapes[id] = nil
 			}
 		}
+	}
+
+	return e
+}
+
+func (feed *Feed) reserveStopTimes(path string, prefix string) (err error) {
+	file, e := feed.getFile(path, "stop_times.txt")
+
+	if e != nil {
+		return errors.New("Could not open required file stop_times.txt")
+	}
+	reader := NewCsvParser(file, feed.opts.DropErroneous)
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = ParseError{"stop_times.txt", reader.Curline, r.(error).Error()}
+		}
+	}()
+
+	var record []string
+	flds := StopTimeFields{
+		tripId:            reader.headeridx.GetFldId("trip_id"),
+		stopId:            reader.headeridx.GetFldId("stop_id"),
+		arrivalTime:       reader.headeridx.GetFldId("arrival_time"),
+		departureTime:     reader.headeridx.GetFldId("departure_time"),
+		stopSequence:      reader.headeridx.GetFldId("stop_sequence"),
+		stopHeadsign:      reader.headeridx.GetFldId("stop_headsign"),
+		pickupType:        reader.headeridx.GetFldId("pickup_type"),
+		dropOffType:       reader.headeridx.GetFldId("drop_off_type"),
+		continuousDropOff: reader.headeridx.GetFldId("continuous_drop_off"),
+		continuousPickup:  reader.headeridx.GetFldId("continuous_pickup"),
+		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled"),
+		timepoint:         reader.headeridx.GetFldId("timepoint"),
+	}
+
+	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		reserveStopTime(record, flds, feed, prefix)
 	}
 
 	return e
