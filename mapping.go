@@ -1089,6 +1089,7 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		}
 	}()
 	a := gtfs.StopTime{}
+	a.Headsign = &feed.emptyString
 	var trip *gtfs.Trip
 
 	tripId := prefix + getString(flds.tripId, r, flds, true, true, "")
@@ -1141,8 +1142,11 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	headsign := getString(flds.stopHeadsign, r, flds, false, false, "")
 
 	// only store headsigns that are different to the default trip headsign
-	if headsign != trip.Headsign {
-		a.Headsign = headsign
+	if len(headsign) > 0 && headsign != *trip.Headsign {
+		if *feed.lastString != headsign {
+			feed.lastString = &headsign
+		}
+		a.Headsign = feed.lastString
 	}
 
 	a.Pickup_type = int8(getRangeInt(flds.pickupType, r, flds, false, 0, 3))
@@ -1199,7 +1203,17 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 		panic(fmt.Errorf("No service with id %s found", getString(flds.serviceId, r, flds, true, true, "")))
 	}
 
-	a.Headsign = getString(flds.tripHeadsign, r, flds, false, false, "")
+	headsign := getString(flds.tripHeadsign, r, flds, false, false, "")
+
+	a.Headsign = &feed.emptyString
+
+	if len(headsign) > 0 {
+		if *feed.lastString != headsign {
+			feed.lastString = &headsign
+		}
+		a.Headsign = feed.lastString
+	}
+
 	a.Short_name = getString(flds.tripShortName, r, flds, false, false, "")
 	a.Direction_id = int8(getRangeInt(flds.directionId, r, flds, false, 0, 1))
 	a.Block_id = prefix + getString(flds.blockId, r, flds, false, false, "")

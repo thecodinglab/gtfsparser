@@ -17,7 +17,7 @@ type StopTime struct {
 	Departure_time      Time
 	Stop                *Stop
 	Sequence            int
-	Headsign            string
+	Headsign            *string
 	Pickup_type         int8
 	Drop_off_type       int8
 	Continuous_pickup   int8

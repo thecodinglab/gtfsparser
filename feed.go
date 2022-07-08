@@ -115,6 +115,9 @@ type Feed struct {
 	zipFileCloser *zip.ReadCloser
 	curFileHandle *os.File
 
+	lastString  *string
+	emptyString string
+
 	opts ParseOptions
 }
 
@@ -150,6 +153,7 @@ func NewFeed() *Feed {
 		NumShpPoints:          0,
 		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([][][]float64, 0)},
 	}
+	g.lastString = &g.emptyString
 	return &g
 }
 

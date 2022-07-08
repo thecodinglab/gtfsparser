@@ -12,7 +12,7 @@ type Trip struct {
 	Id                    string
 	Route                 *Route
 	Service               *Service
-	Headsign              string
+	Headsign              *string
 	Short_name            string
 	Direction_id          int8
 	Block_id              string
