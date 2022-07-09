@@ -215,7 +215,8 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if e == nil {
 		// remove reservation markers
 		for tripId, t := range feed.Trips {
-			if t.Id != tripId {
+			// might be nil on dry run
+			if t != nil && t.Id != tripId {
 				t.Id = tripId
 				t.StopTimes = make(gtfs.StopTimes, 0)
 			}
