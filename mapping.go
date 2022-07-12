@@ -1100,9 +1100,21 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		panic(errors.New("No trip with id " + getString(flds.tripId, r, flds, true, true, "") + " found."))
 	}
 
+	toDel := false
+
+	if feed.opts.DateFilterStart.Year > 0 || feed.opts.DateFilterEnd.Year > 0 {
+		// this trip will later be deleted - dont store stop times for it!
+		s := trip.Service
+		if (s.IsEmpty() && s.Start_date.Year == 0 && s.End_date.Year == 0) || s.GetFirstActiveDate().Day < 0 {
+			toDel = true
+		}
+	}
+
 	if trip.Id != tripId {
 		trip.Id = tripId
-		trip.StopTimes = make(gtfs.StopTimes, 0, trip.StopTimes[0].Sequence)
+		if !toDel {
+			trip.StopTimes = make(gtfs.StopTimes, 0, trip.StopTimes[0].Sequence)
+		}
 	}
 
 	if val, ok := feed.Stops[prefix+getString(flds.stopId, r, flds, true, true, "")]; ok {
@@ -1169,7 +1181,9 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	}
 
 	if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
-		trip.StopTimes = append(trip.StopTimes, a)
+		if !toDel {
+			trip.StopTimes = append(trip.StopTimes, a)
+		}
 	} else {
 		locErr := errors.New("Stop time sequence collision. Sequence has to increase along trip")
 		if !feed.opts.DropErroneous {
@@ -1201,6 +1215,20 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 		a.Service = val
 	} else {
 		panic(fmt.Errorf("No service with id %s found", getString(flds.serviceId, r, flds, true, true, "")))
+	}
+
+	toDel := false
+
+	if feed.opts.DateFilterStart.Year > 0 || feed.opts.DateFilterEnd.Year > 0 {
+		// this trip will later be deleted - dont store or parse additional fields (strings) for it
+		s := a.Service
+		if (s.IsEmpty() && s.Start_date.Year == 0 && s.End_date.Year == 0) || s.GetFirstActiveDate().Day < 0 {
+			toDel = true
+		}
+	}
+
+	if toDel {
+		return a, nil
 	}
 
 	headsign := getString(flds.tripHeadsign, r, flds, false, false, "")
