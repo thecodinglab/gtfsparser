@@ -19,6 +19,8 @@ import (
 	"strings"
 )
 
+var emptyTz, _ = gtfs.NewTimezone("")
+
 // csv lookup structs
 type Fields interface {
 	FldName(idx int) string
@@ -1555,12 +1557,11 @@ func createLevel(r []string, flds LevelFields, feed *Feed, idprefix string) (t *
 
 func getString(id int, r []string, flds Fields, req bool, nonempty bool, emptyrepl string) string {
 	if id >= 0 {
-		val := ""
+		trimmed := ""
 		if id < len(r) {
-			val = r[id]
+			trimmed = r[id]
 		}
-		trimmed := strings.TrimSpace(val)
-		if nonempty && len(trimmed) == 0 {
+		if nonempty && trimmed == "" {
 			if len(emptyrepl) > 0 {
 				return emptyrepl
 			} else {
@@ -1584,6 +1585,11 @@ func getURL(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed)
 	if id >= 0 && id < len(r) {
 		val = r[id]
 	}
+
+	if len(val) == 0  && !req {
+		return nil
+	}
+
 	if len(trimQuotes(val)) > 0 {
 		u, e := url.ParseRequestURI(trimQuotes(val))
 
@@ -1611,7 +1617,7 @@ func getURL(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed)
 		}
 
 		if e != nil {
-			locErr := fmt.Errorf("'%s' is not a valid url", errFldPrep(strings.TrimSpace(val)))
+			locErr := fmt.Errorf("'%s' is not a valid url", errFldPrep(val))
 			if req || !ignErrs {
 				panic(locErr)
 			} else {
@@ -1629,10 +1635,10 @@ func getURL(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed)
 func getMail(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed) *mail.Address {
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
-		u, e := mail.ParseAddress(strings.TrimSpace(val))
+		u, e := mail.ParseAddress(val)
 		if e != nil {
 			locErr := fmt.Errorf("'%s' is not a valid email address", errFldPrep(val))
 			if req || !ignErrs {
@@ -1650,10 +1656,9 @@ func getMail(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed
 }
 
 func getTimezone(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed) gtfs.Timezone {
-
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
 		tz, e := gtfs.NewTimezone(val)
@@ -1667,17 +1672,16 @@ func getTimezone(id int, r []string, flds Fields, req bool, ignErrs bool, feed *
 	} else if req {
 		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
 	}
-	tz, _ := gtfs.NewTimezone("")
-	return tz
+	return emptyTz
 }
 
 func getIsoLangCode(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed) gtfs.LanguageISO6391 {
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
-		l, e := gtfs.NewLanguageISO6391(strings.TrimSpace(val))
+		l, e := gtfs.NewLanguageISO6391(val)
 		if e != nil && (req || !ignErrs) {
 			panic(e)
 		} else if e != nil {
@@ -1698,7 +1702,6 @@ func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs boo
 		val = r[id]
 	}
 	if len(val) > 0 {
-		val = strings.TrimSpace(val)
 		if len(val) != 6 {
 			locErr := fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", flds.FldName(id), errFldPrep(val))
 			if ignErrs {
@@ -1731,10 +1734,10 @@ func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs boo
 func getIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, feed *Feed) int {
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
-		num, err := strconv.Atoi(strings.TrimSpace(val))
+		num, err := strconv.Atoi(val)
 		if err != nil {
 			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
 			if ignErrs {
@@ -1751,10 +1754,10 @@ func getIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, f
 func getPositiveInt(id int, r []string, flds Fields, req bool) int {
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
-		num, err := strconv.Atoi(strings.TrimSpace(val))
+		num, err := strconv.Atoi(val)
 		if err != nil || num < 0 {
 			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val)))
 		}
@@ -1768,10 +1771,10 @@ func getPositiveInt(id int, r []string, flds Fields, req bool) int {
 func getPositiveIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, feed *Feed) int {
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
-		num, err := strconv.Atoi(strings.TrimSpace(val))
+		num, err := strconv.Atoi(val)
 		if err != nil || num < 0 {
 			locErr := fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
 			if ignErrs {
@@ -1788,10 +1791,10 @@ func getPositiveIntWithDefault(id int, r []string, flds Fields, def int, ignErrs
 func getRangeInt(id int, r []string, flds Fields, req bool, min int, max int) int {
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
-		num, err := strconv.Atoi(strings.TrimSpace(val))
+		num, err := strconv.Atoi(val)
 		if err != nil {
 			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val)))
 		}
@@ -1810,10 +1813,10 @@ func getRangeInt(id int, r []string, flds Fields, req bool, min int, max int) in
 func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, def int, ignErrs bool, feed *Feed) int {
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
-		num, err := strconv.Atoi(strings.TrimSpace(val))
+		num, err := strconv.Atoi(val)
 		if err != nil {
 			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
 			if ignErrs {
@@ -1840,14 +1843,13 @@ func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, d
 func getFloat(id int, r []string, flds Fields, req bool) float32 {
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
-		trimmed := strings.TrimSpace(val)
-		num, err := strconv.ParseFloat(trimmed, 32)
+		num, err := strconv.ParseFloat(val, 32)
 		if err != nil {
 			// try with comma as decimal separator
-			num, err = strconv.ParseFloat(strings.Replace(trimmed, ",", ".", 1), 32)
+			num, err = strconv.ParseFloat(strings.Replace(val, ",", ".", 1), 32)
 		}
 		if err != nil {
 			panic(fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(val)))
@@ -1866,7 +1868,7 @@ func getTime(id int, r []string, flds Fields) gtfs.Time {
 
 	str := ""
 	if id < len(r) {
-		str = strings.TrimSpace(r[id])
+		str = r[id]
 	}
 
 	if len(str) == 0 {
@@ -1904,7 +1906,7 @@ func getNullablePositiveFloat(id int, r []string, flds Fields, ignErrs bool, fee
 		val = r[id]
 	}
 	if len(val) > 0 {
-		num, err := strconv.ParseFloat(strings.TrimSpace(val), 32)
+		num, err := strconv.ParseFloat(val, 32)
 		if err != nil || num < 0 {
 			locErr := fmt.Errorf("Expected positive float for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
 			if ignErrs {
@@ -1924,7 +1926,7 @@ func getNullableFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed)
 		val = r[id]
 	}
 	if len(val) > 0 {
-		num, err := strconv.ParseFloat(strings.TrimSpace(val), 32)
+		num, err := strconv.ParseFloat(val, 32)
 		if err != nil {
 			locErr := fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
 			if ignErrs {
@@ -1941,10 +1943,10 @@ func getNullableFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed)
 func getBool(id int, r []string, flds Fields, req bool, def bool, ignErrs bool, feed *Feed) bool {
 	val := ""
 	if id >= 0 && id < len(r) {
-		val = strings.TrimSpace(r[id])
+		val = r[id]
 	}
 	if len(val) > 0 {
-		num, err := strconv.Atoi(strings.TrimSpace(val))
+		num, err := strconv.Atoi(val)
 		if err != nil || (num != 0 && num != 1) {
 			locErr := fmt.Errorf("Expected 1 or 0 for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
 			if ignErrs {

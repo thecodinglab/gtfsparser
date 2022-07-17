@@ -28,6 +28,11 @@ func (a Timezone) GetTzString() string {
 
 // NewTimezone creates a new timezone object
 func NewTimezone(tofind string) (Timezone, error) {
+	if tofind == "" {
+		return Timezone{-1}, fmt.Errorf("'%s' is not a valid tz database timezone, see https://en.wikipedia.org/wiki/List_of_tz_database_time_zones", tofind)
+	}
+
+	// TODO: quadratic code...
 	for i, tz := range valid_tz {
 		if tz == tofind {
 			return Timezone{int16(i)}, nil
