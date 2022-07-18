@@ -1156,7 +1156,7 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	headsign := getString(flds.stopHeadsign, r, flds, false, false, "")
 
 	// only store headsigns that are different to the default trip headsign
-	if len(headsign) > 0 && headsign != *trip.Headsign {
+	if len(headsign) > 0 && trip.Headsign != nil && headsign != *trip.Headsign {
 		if *feed.lastString != headsign {
 			feed.lastString = &headsign
 		}
@@ -1586,7 +1586,7 @@ func getURL(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed)
 		val = r[id]
 	}
 
-	if len(val) == 0  && !req {
+	if len(val) == 0 && !req {
 		return nil
 	}
 
