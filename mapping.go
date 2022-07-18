@@ -1182,16 +1182,16 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		feed.warn(locErr)
 	}
 
-	if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
-		if !toDel {
+	if !toDel {
+		if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
 			trip.StopTimes = append(trip.StopTimes, a)
-		}
-	} else {
-		locErr := errors.New("Stop time sequence collision. Sequence has to increase along trip")
-		if !feed.opts.DropErroneous {
-			panic(locErr)
 		} else {
-			feed.warn(locErr)
+			locErr := errors.New("Stop time sequence collision. Sequence has to increase along trip")
+			if !feed.opts.DropErroneous {
+				panic(locErr)
+			} else {
+				feed.warn(locErr)
+			}
 		}
 	}
 
