@@ -500,12 +500,12 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 		if !ok {
 			locErr := errors.New("(for stop id " + id + ") No station with id " + pid + " found, cannot use as parent station here.")
 			_, wasFiltered := geofiltered[pid]
-			if feed.opts.UseDefValueOnError {
+			if wasFiltered {
+				// continue, the default value "nil" has already be written above
+				continue
+			} else if feed.opts.UseDefValueOnError {
 				// continue, the default value "nil" has already be written above
 				feed.warn(locErr)
-				continue
-			} else if wasFiltered {
-				// continue, the default value "nil" has already be written above
 				continue
 			} else if feed.opts.DropErroneous {
 				// delete the erroneous entry
@@ -920,7 +920,7 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 			} else {
 				panic(e)
 			}
-		} else {
+		} else if sp != nil {
 			for _, i := range addFlds {
 				if i < len(record) {
 					if _, ok := feed.ShapesAddFlds[reader.header[i]]; !ok {
@@ -943,7 +943,7 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 		for id, shape := range feed.Shapes {
 			if len(shape.Points) == 0 {
 				loce := fmt.Errorf("Shape #%s has no points", id)
-				if feed.opts.DropErroneous {
+				if feed.opts.DropErroneous || len(feed.opts.PolygonFilter) > 0 {
 					// dont warn here, because this can only happen if a shape point
 					// has been deleted before
 					delete(feed.Shapes, id)
