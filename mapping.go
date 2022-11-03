@@ -1300,11 +1300,9 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 	contains := true
 	for _, poly := range feed.opts.PolygonFilter {
 		contains = false
-		if len(poly) > 0 {
-			if polyContains(float64(lon), float64(lat), poly) {
-				contains = true
-				break
-			}
+		if poly.PolyContains(float64(lon), float64(lat)) {
+			contains = true
+			break
 		}
 	}
 
@@ -1371,11 +1369,9 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 	contains := true
 	for _, poly := range feed.opts.PolygonFilter {
 		contains = false
-		if len(poly) > 0 {
-			if polyContains(float64(lon), float64(lat), poly) {
-				contains = true
-				break
-			}
+		if poly.PolyContains(float64(lon), float64(lat)) {
+			contains = true
+			break
 		}
 	}
 

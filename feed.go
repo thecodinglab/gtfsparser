@@ -38,6 +38,34 @@ type ColOrders struct {
 	Attributions       []string
 }
 
+type Polygon struct {
+	OuterRing [][2]float64
+	ll        [2]float64
+	ur        [2]float64
+}
+
+// NewPolygon creates a new Polygon from an outer ring
+func NewPolygon(outer [][2]float64) Polygon {
+	poly := Polygon{outer, [2]float64{math.MaxFloat64, math.MaxFloat64}, [2]float64{-math.MaxFloat64, -math.MaxFloat64}}
+
+	for _, p := range outer {
+		if p[0] < poly.ll[0] {
+			poly.ll[0] = p[0]
+		}
+		if p[1] < poly.ll[1] {
+			poly.ll[1] = p[1]
+		}
+		if p[0] > poly.ur[0] {
+			poly.ur[0] = p[0]
+		}
+		if p[1] > poly.ur[1] {
+			poly.ur[1] = p[1]
+		}
+	}
+
+	return poly
+}
+
 // A ParseOptions object holds options for parsing a the feed
 type ParseOptions struct {
 	UseDefValueOnError   bool
@@ -51,7 +79,7 @@ type ParseOptions struct {
 	KeepAddFlds          bool
 	DateFilterStart      gtfs.Date
 	DateFilterEnd        gtfs.Date
-	PolygonFilter        [][][]float64
+	PolygonFilter        []Polygon
 }
 
 type ErrStats struct {
@@ -151,7 +179,7 @@ func NewFeed() *Feed {
 		AttributionsAddFlds:   make(map[string]map[*gtfs.Attribution]string),
 		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		NumShpPoints:          0,
-		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([][][]float64, 0)},
+		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([]Polygon, 0)},
 	}
 	g.lastString = &g.emptyString
 	return &g
@@ -462,11 +490,9 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 		contains := true
 		for _, poly := range feed.opts.PolygonFilter {
 			contains = false
-			if len(poly) > 0 {
-				if polyContains(float64(stop.Lon), float64(stop.Lat), poly) {
-					contains = true
-					break
-				}
+			if poly.PolyContains(float64(stop.Lon), float64(stop.Lat)) {
+				contains = true
+				break
 			}
 		}
 
@@ -1767,18 +1793,27 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 	return nil
 }
 
-func polyContains(x float64, y float64, poly [][]float64) bool {
+func (p *Polygon) PolyContains(x float64, y float64) bool {
+	if len(p.OuterRing) == 0 {
+		return false
+	}
+
+	// first check if contained in bounding box
+	if x < p.ll[0] || x > p.ur[0] || y < p.ll[1] || y > p.ur[1] {
+		return false
+	}
+
 	// see https://de.wikipedia.org/wiki/Punkt-in-Polygon-Test_nach_Jordan
 	c := int8(-1)
 
-	for i := 1; i < len(poly); i++ {
-		c *= polyContCheck(x, y, poly[i-1][0], poly[i-1][1], poly[i][0], poly[i][1])
+	for i := 1; i < len(p.OuterRing); i++ {
+		c *= polyContCheck(x, y, p.OuterRing[i-1][0], p.OuterRing[i-1][1], p.OuterRing[i][0], p.OuterRing[i][1])
 		if c == 0 {
 			return true
 		}
 	}
 
-	c *= polyContCheck(x, y, poly[len(poly)-1][0], poly[len(poly)-1][1], poly[0][0], poly[0][1])
+	c *= polyContCheck(x, y, p.OuterRing[len(p.OuterRing)-1][0], p.OuterRing[len(p.OuterRing)-1][1], p.OuterRing[0][0], p.OuterRing[0][1])
 
 	return c >= 0
 }

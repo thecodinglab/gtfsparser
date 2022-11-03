@@ -101,7 +101,9 @@ func (p *CsvParser) ParseCsvLine() []string {
 
 	// trim
 	for i, r := range record {
-		record[i] = strings.TrimSpace(r)
+		if len(record[i]) > 0 {
+			record[i] = strings.TrimSpace(r)
+		}
 	}
 
 	return record

@@ -52,7 +52,6 @@ func GetTypeFromExtended(t int16) int16 {
 	case 400:
 	case 403:
 	case 404:
-	case 405:
 	case 1503:
 		return 2 // rail
 	case 3:
@@ -86,7 +85,6 @@ func GetTypeFromExtended(t int16) int16 {
 	case 715:
 	case 716:
 	case 717:
-	case 800:
 	case 1500:
 	case 1501:
 	case 1505:
@@ -130,8 +128,10 @@ func GetTypeFromExtended(t int16) int16 {
 	case 5:
 		return 5 // cable car
 	case 11:
+	case 800:
 		return 11
 	case 12:
+	case 405:
 		return 12
 	}
 
