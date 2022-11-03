@@ -1870,6 +1870,15 @@ func (feed *Feed) warn(e error) {
 	}
 }
 
+func (feed *Feed) DeletePathway(id string) {
+	delete(feed.FareAttributes, id)
+
+	// delete additional fields from CSV
+	for k, _ := range feed.PathwaysAddFlds {
+		delete(feed.PathwaysAddFlds[k], id)
+	}
+}
+
 func (feed *Feed) DeleteFareAttribute(id string) {
 	delete(feed.FareAttributes, id)
 
