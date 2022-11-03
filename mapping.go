@@ -1079,7 +1079,9 @@ func reserveStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string)
 		panic(errors.New("No trip with id " + getString(flds.tripId, r, flds, true, true, "") + " found."))
 	}
 
-	trip.StopTimes[0].Sequence = trip.StopTimes[0].Sequence + 1
+	if _, ok := feed.Stops[prefix+getString(flds.stopId, r, flds, true, true, "")]; ok {
+		trip.StopTimes[0].Sequence = trip.StopTimes[0].Sequence + 1
+	}
 
 	return nil
 }
@@ -1115,7 +1117,11 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	if trip.Id != tripId {
 		trip.Id = tripId
 		if !toDel {
-			trip.StopTimes = make(gtfs.StopTimes, 0, trip.StopTimes[0].Sequence)
+			if trip.StopTimes[0].Sequence == 0 {
+				trip.StopTimes = trip.StopTimes[:len(trip.StopTimes)-1]
+			} else {
+				trip.StopTimes = make(gtfs.StopTimes, 0, trip.StopTimes[0].Sequence)
+			}
 		}
 	}
 
@@ -1259,7 +1265,9 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 				a.Shape = val
 			} else {
 				locErr := fmt.Errorf("No shape with id %s found", shapeID)
-				if feed.opts.UseDefValueOnError {
+				if len(feed.opts.PolygonFilter) > 0 {
+					a.Shape = nil
+				} else if feed.opts.UseDefValueOnError {
 					feed.warn(locErr)
 					a.Shape = nil
 				} else {
@@ -1285,13 +1293,34 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 	shapeID := prefix + getString(flds.shapeId, r, flds, true, true, "")
 	var shape *gtfs.Shape
 
+	lat := getFloat(flds.shapePtLat, r, flds, true)
+	lon := getFloat(flds.shapePtLon, r, flds, true)
+
+	// check if any defined PolygonFilter contains the shape point
+	contains := true
+	for _, poly := range feed.opts.PolygonFilter {
+		contains = false
+		if len(poly) > 0 {
+			if polyContains(float64(lon), float64(lat), poly) {
+				contains = true
+				break
+			}
+		}
+	}
+
 	if val, ok := feed.Shapes[shapeID]; ok {
 		shape = val
-		shape.Points[0].Sequence = shape.Points[0].Sequence + 1
+		if contains {
+			shape.Points[0].Sequence = shape.Points[0].Sequence + 1
+		}
 	} else {
 		// create new shape
 		shape = new(gtfs.Shape)
-		shape.Points = append(shape.Points, gtfs.ShapePoint{0, 0, 1, 0})
+		if contains {
+			shape.Points = append(shape.Points, gtfs.ShapePoint{0, 0, 1, 0})
+		} else {
+			shape.Points = append(shape.Points, gtfs.ShapePoint{0, 0, 0, 0})
+		}
 
 		// push it onto the shape map
 		feed.Shapes[shapeID] = shape
@@ -1336,6 +1365,22 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 	// check for 0,0 coordinates, which are most definitely an error
 	if feed.opts.CheckNullCoordinates && math.Abs(float64(lat)) < 0.0001 && math.Abs(float64(lon)) < 0.0001 {
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
+	}
+
+	// check if any defined PolygonFilter contains the shape point
+	contains := true
+	for _, poly := range feed.opts.PolygonFilter {
+		contains = false
+		if len(poly) > 0 {
+			if polyContains(float64(lon), float64(lat), poly) {
+				contains = true
+				break
+			}
+		}
+	}
+
+	if !contains {
+		return shape, nil, nil
 	}
 
 	p := gtfs.ShapePoint{
