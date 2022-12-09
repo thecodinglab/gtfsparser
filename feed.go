@@ -68,18 +68,19 @@ func NewPolygon(outer [][2]float64) Polygon {
 
 // A ParseOptions object holds options for parsing a the feed
 type ParseOptions struct {
-	UseDefValueOnError   bool
-	DropErroneous        bool
-	DryRun               bool
-	CheckNullCoordinates bool
-	EmptyStringRepl      string
-	ZipFix               bool
-	ShowWarnings         bool
-	DropShapes           bool
-	KeepAddFlds          bool
-	DateFilterStart      gtfs.Date
-	DateFilterEnd        gtfs.Date
-	PolygonFilter        []Polygon
+	UseDefValueOnError    bool
+	DropErroneous         bool
+	DryRun                bool
+	CheckNullCoordinates  bool
+	EmptyStringRepl       string
+	ZipFix                bool
+	ShowWarnings          bool
+	DropShapes            bool
+	KeepAddFlds           bool
+	DateFilterStart       gtfs.Date
+	DateFilterEnd         gtfs.Date
+	PolygonFilter         []Polygon
+	UseStandardRouteTypes bool
 }
 
 type ErrStats struct {
@@ -179,7 +180,7 @@ func NewFeed() *Feed {
 		AttributionsAddFlds:   make(map[string]map[*gtfs.Attribution]string),
 		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		NumShpPoints:          0,
-		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([]Polygon, 0)},
+		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([]Polygon, 0), false},
 	}
 	g.lastString = &g.emptyString
 	return &g
@@ -632,6 +633,9 @@ func (feed *Feed) parseRoutes(path string, prefix string) (err error) {
 			} else {
 				panic(e)
 			}
+		}
+		if feed.opts.UseStandardRouteTypes {
+			route.Type = gtfs.GetTypeFromExtended(route.Type)
 		}
 		if feed.opts.DryRun {
 			feed.Routes[route.Id] = nil
