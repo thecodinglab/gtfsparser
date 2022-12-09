@@ -106,9 +106,29 @@ func GetTypeFromExtended(t int16) int16 {
 	case 905:
 	case 906:
 		return 0 // tram
-	// TODO(patrick): from here on not complete!
 	case 4:
 	case 1000:
+	case 1001:
+	case 1002:
+	case 1003:
+	case 1004:
+	case 1005:
+	case 1006:
+	case 1007:
+	case 1008:
+	case 1009:
+	case 1010:
+	case 1011:
+	case 1012:
+	case 1013:
+	case 1014:
+	case 1015:
+	case 1016:
+	case 1017:
+	case 1018:
+	case 1019:
+	case 1020:
+	case 1021:
 	case 1200:
 	case 1502:
 		return 4 // ferry
