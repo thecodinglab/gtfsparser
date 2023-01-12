@@ -880,7 +880,11 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 	a.Long_name = getString(flds.routeLongName, r, flds, false, false, "")
 
 	if len(a.Short_name) == 0 && len(a.Long_name) == 0 {
-		return nil, errors.New("Either route_short_name or route_long_name are required.")
+		if feed.opts.UseDefValueOnError {
+			a.Short_name = "-"
+		} else {
+			return nil, errors.New("Either route_short_name or route_long_name are required.")
+		}
 	}
 
 	a.Desc = getString(flds.routeDesc, r, flds, false, false, "")
