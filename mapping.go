@@ -29,7 +29,7 @@ type Fields interface {
 func addiFields(header []string, flds Fields) []int {
 	a := make([]int, 0)
 
-	for i, _ := range header {
+	for i := range header {
 		if len(flds.FldName(i)) == 0 {
 			a = append(a, i)
 		}
@@ -630,6 +630,37 @@ func (e *StopNotFoundErr) StopId() string {
 	return e.prefix + e.sid
 }
 
+type RouteNotFoundErr struct {
+	prefix    string
+	rid       string
+	payloadId string
+}
+
+func (e *RouteNotFoundErr) Error() string {
+	return "No route with id " + e.rid + " found."
+}
+
+func (e *RouteNotFoundErr) RouteId() string {
+	return e.prefix + e.rid
+}
+
+func (e *RouteNotFoundErr) PayloadId() string {
+	return e.prefix + e.payloadId
+}
+
+type TripNotFoundErr struct {
+	prefix string
+	tid    string
+}
+
+func (e *TripNotFoundErr) Error() string {
+	return "No trip with id " + e.tid + " found."
+}
+
+func (e *TripNotFoundErr) TripId() string {
+	return e.prefix + e.tid
+}
+
 func createTranslation(r []string, flds TranslationFields, feed *Feed, prefix string) (attr *gtfs.Translation, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -671,7 +702,7 @@ func createTranslation(r []string, flds TranslationFields, feed *Feed, prefix st
 			if trip, ok := feed.Trips[prefix+id]; ok {
 				trip.Translations = append(trip.Translations, tr)
 			} else {
-				panic(fmt.Errorf("No trip with id %s found", id))
+				panic(&TripNotFoundErr{prefix, id})
 			}
 		} else if tableName == "feed_info" {
 			panic(fmt.Errorf("Cannot use record_id for table_name 'feed_info'"))
@@ -736,7 +767,7 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 		if val, ok := feed.Routes[prefix+routeId]; ok {
 			route = val
 		} else {
-			panic(fmt.Errorf("No route with id %s found", routeId))
+			panic(&RouteNotFoundErr{prefix, routeId, ""})
 		}
 	}
 
@@ -744,7 +775,7 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 		if val, ok := feed.Trips[prefix+tripId]; ok {
 			trip = val
 		} else {
-			panic(fmt.Errorf("No trip with id %s found", tripId))
+			panic(&TripNotFoundErr{prefix, tripId})
 		}
 	}
 
@@ -805,7 +836,7 @@ func createFrequency(r []string, flds FrequencyFields, feed *Feed, prefix string
 	if val, ok := feed.Trips[tripid]; ok {
 		trip = val
 	} else {
-		panic(errors.New("No trip with id " + r[flds.tripId] + " found."))
+		panic(&TripNotFoundErr{prefix, r[flds.tripId]})
 	}
 
 	a.Exact_times = getBool(flds.exactTimes, r, flds, false, false, feed.opts.UseDefValueOnError, feed)
@@ -1080,7 +1111,7 @@ func reserveStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string)
 	if val, ok := feed.Trips[prefix+getString(flds.tripId, r, flds, true, true, "")]; ok {
 		trip = val
 	} else {
-		panic(errors.New("No trip with id " + getString(flds.tripId, r, flds, true, true, "") + " found."))
+		panic(&TripNotFoundErr{prefix, getString(flds.tripId, r, flds, true, true, "")})
 	}
 
 	if _, ok := feed.Stops[prefix+getString(flds.stopId, r, flds, true, true, "")]; ok {
@@ -1105,7 +1136,7 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	if val, ok := feed.Trips[tripId]; ok {
 		trip = val
 	} else {
-		panic(errors.New("No trip with id " + getString(flds.tripId, r, flds, true, true, "") + " found."))
+		panic(&TripNotFoundErr{prefix, getString(flds.tripId, r, flds, true, true, "")})
 	}
 
 	toDel := false
@@ -1220,7 +1251,7 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 	if val, ok := feed.Routes[prefix+getString(flds.routeId, r, flds, true, true, "")]; ok {
 		a.Route = val
 	} else {
-		panic(fmt.Errorf("No route with id %s found", getString(flds.routeId, r, flds, true, true, "")))
+		panic(&RouteNotFoundErr{prefix, getString(flds.routeId, r, flds, true, true, ""), getString(flds.tripId, r, flds, true, true, "")})
 	}
 
 	if val, ok := feed.Services[prefix+getString(flds.serviceId, r, flds, true, true, "")]; ok {
@@ -1319,9 +1350,9 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 		// create new shape
 		shape = new(gtfs.Shape)
 		if contains {
-			shape.Points = append(shape.Points, gtfs.ShapePoint{0, 0, 1, 0})
+			shape.Points = append(shape.Points, gtfs.ShapePoint{Lat: 0, Lon: 0, Sequence: 1, Dist_traveled: 0})
 		} else {
-			shape.Points = append(shape.Points, gtfs.ShapePoint{0, 0, 0, 0})
+			shape.Points = append(shape.Points, gtfs.ShapePoint{Lat: 0, Lon: 0, Sequence: 0, Dist_traveled: 0})
 		}
 
 		// push it onto the shape map
@@ -1440,7 +1471,7 @@ func createFareAttribute(r []string, flds FareAttributeFields, feed *Feed, prefi
 		if len(prefix) > 0 {
 			prefixCount := 0
 			foundId := ""
-			for i, _ := range feed.Agencies {
+			for i := range feed.Agencies {
 				if strings.HasPrefix(i, prefix) {
 					prefixCount = prefixCount + 1
 					foundId = i
@@ -1489,7 +1520,7 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) 
 		if val, ok := feed.Routes[routeID]; ok {
 			rule.Route = val
 		} else {
-			panic(fmt.Errorf("No route with id %s found", routeID))
+			panic(&RouteNotFoundErr{prefix, routeID, ""})
 		}
 	}
 
@@ -1936,6 +1967,10 @@ func getTime(id int, r []string, flds Fields) gtfs.Time {
 	}
 	if e == nil {
 		second, e = strconv.Atoi(parts[2])
+	}
+
+	if hour > 127 {
+		panic(fmt.Errorf("Max representable time is '127:59:59', found '%s' for field %s", errFldPrep(str), flds.FldName(id)))
 	}
 
 	if e != nil {

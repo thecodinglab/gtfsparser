@@ -81,6 +81,7 @@ type ParseOptions struct {
 	DateFilterEnd         gtfs.Date
 	PolygonFilter         []Polygon
 	UseStandardRouteTypes bool
+	MOTFilter             map[int16]bool
 }
 
 type ErrStats struct {
@@ -180,7 +181,7 @@ func NewFeed() *Feed {
 		AttributionsAddFlds:   make(map[string]map[*gtfs.Attribution]string),
 		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		NumShpPoints:          0,
-		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([]Polygon, 0), false},
+		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([]Polygon, 0), false, make(map[int16]bool, 0)},
 	}
 	g.lastString = &g.emptyString
 	return &g
@@ -204,8 +205,17 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	// holds stops that are dropped because of geometric filtering.
 	// if these are referenced later, we quietly ignore the error like
 	// with -De
-
 	geofilteredStops := make(map[string]struct{}, 0)
+
+	// holds routes that are dropped because of MOT filtering.
+	// if these are referenced later, we quietly ignore the error like
+	// with -De
+	filteredRoutes := make(map[string]struct{}, 0)
+
+	// holds trips that are dropped because of MOT filtering.
+	// if these are referenced later, we quietly ignore the error like
+	// with -De
+	filteredTrips := make(map[string]struct{}, 0)
 
 	e = feed.parseAgencies(path, prefix)
 	if e == nil {
@@ -224,7 +234,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseShapes(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseRoutes(path, prefix)
+		e = feed.parseRoutes(path, prefix, filteredRoutes)
 	}
 	if e == nil {
 		e = feed.parseCalendar(path, prefix)
@@ -233,13 +243,13 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseCalendarDates(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseTrips(path, prefix)
+		e = feed.parseTrips(path, prefix, filteredRoutes, filteredTrips)
 	}
 	if e == nil {
-		e = feed.reserveStopTimes(path, prefix)
+		e = feed.reserveStopTimes(path, prefix, filteredTrips)
 	}
 	if e == nil {
-		e = feed.parseStopTimes(path, prefix, geofilteredStops)
+		e = feed.parseStopTimes(path, prefix, geofilteredStops, filteredTrips)
 	}
 	if e == nil {
 		// remove reservation markers
@@ -255,19 +265,19 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseFareAttributes(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseFareAttributeRules(path, prefix)
+		e = feed.parseFareAttributeRules(path, prefix, filteredRoutes)
 	}
 	if e == nil {
-		e = feed.parseFrequencies(path, prefix)
+		e = feed.parseFrequencies(path, prefix, filteredTrips)
 	}
 	if e == nil {
-		e = feed.parseTransfers(path, prefix, geofilteredStops)
+		e = feed.parseTransfers(path, prefix, geofilteredStops, filteredRoutes)
 	}
 	if e == nil {
 		e = feed.parsePathways(path, prefix, geofilteredStops)
 	}
 	if e == nil {
-		e = feed.parseAttributions(path, prefix)
+		e = feed.parseAttributions(path, prefix, filteredRoutes, filteredTrips)
 	}
 	// if e == nil {
 	// e = feed.parseTranslations(path, prefix)
@@ -581,7 +591,7 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 	return e
 }
 
-func (feed *Feed) parseRoutes(path string, prefix string) (err error) {
+func (feed *Feed) parseRoutes(path string, prefix string, filtered map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "routes.txt")
 
 	if e != nil {
@@ -637,6 +647,14 @@ func (feed *Feed) parseRoutes(path string, prefix string) (err error) {
 		if feed.opts.UseStandardRouteTypes {
 			route.Type = gtfs.GetTypeFromExtended(route.Type)
 		}
+
+		if len(feed.opts.MOTFilter) != 0 {
+			if _, ok := feed.opts.MOTFilter[route.Type]; !ok {
+				filtered[route.Id] = struct{}{}
+				continue
+			}
+		}
+
 		if feed.opts.DryRun {
 			feed.Routes[route.Id] = nil
 		} else {
@@ -791,7 +809,7 @@ func (feed *Feed) parseCalendarDates(path string, prefix string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseTrips(path string, prefix string) (err error) {
+func (feed *Feed) parseTrips(path string, prefix string, filteredRoutes map[string]struct{}, filteredTrips map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "trips.txt")
 
 	if e != nil {
@@ -841,7 +859,16 @@ func (feed *Feed) parseTrips(path string, prefix string) (err error) {
 				e = errors.New("ID collision, trip_id '" + tripId + "' already used.")
 			}
 		} else {
-			if feed.opts.DropErroneous {
+			routeNotFoundErr, routeNotFound := e.(*RouteNotFoundErr)
+			wasFiltered := false
+			if routeNotFound {
+				_, wasFiltered = filteredRoutes[routeNotFoundErr.RouteId()]
+			}
+
+			if wasFiltered {
+				filteredTrips[routeNotFoundErr.PayloadId()] = struct{}{}
+				continue
+			} else if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedTrips++
 				feed.warn(e)
 				continue
@@ -1000,7 +1027,7 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 	return e
 }
 
-func (feed *Feed) reserveStopTimes(path string, prefix string) (err error) {
+func (feed *Feed) reserveStopTimes(path string, prefix string, filteredTrips map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "stop_times.txt")
 
 	if e != nil {
@@ -1031,13 +1058,23 @@ func (feed *Feed) reserveStopTimes(path string, prefix string) (err error) {
 	}
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
-		reserveStopTime(record, flds, feed, prefix)
+		e := reserveStopTime(record, flds, feed, prefix)
+
+		if e != nil {
+			tripNotFoundErr, tripNotFound := e.(*TripNotFoundErr)
+			if tripNotFound {
+				_, wasFiltered := filteredTrips[tripNotFoundErr.TripId()]
+				if wasFiltered {
+					continue
+				}
+			}
+		}
 	}
 
 	return e
 }
 
-func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[string]struct{}) (err error) {
+func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[string]struct{}, filteredTrips map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "stop_times.txt")
 
 	if e != nil {
@@ -1077,10 +1114,15 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 		trip, st, e := createStopTime(record, flds, feed, prefix)
 
 		if e != nil {
-			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
 			wasFiltered := false
+			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
 			if stopNotFound {
 				_, wasFiltered = geofiltered[stopNotFoundErr.StopId()]
+			}
+
+			tripNotFoundErr, tripNotFound := e.(*TripNotFoundErr)
+			if tripNotFound {
+				_, wasFiltered = filteredTrips[tripNotFoundErr.TripId()]
 			}
 
 			if wasFiltered {
@@ -1128,7 +1170,7 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 	return e
 }
 
-func (feed *Feed) parseFrequencies(path string, prefix string) (err error) {
+func (feed *Feed) parseFrequencies(path string, prefix string, filteredTrips map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "frequencies.txt")
 
 	if e != nil {
@@ -1160,7 +1202,15 @@ func (feed *Feed) parseFrequencies(path string, prefix string) (err error) {
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		trip, freq, e := createFrequency(record, flds, feed, prefix)
 		if e != nil {
-			if feed.opts.DropErroneous {
+			tripNotFoundErr, tripNotFound := e.(*TripNotFoundErr)
+			wasFiltered := false
+			if tripNotFound {
+				_, wasFiltered = filteredTrips[tripNotFoundErr.TripId()]
+			}
+
+			if wasFiltered {
+				continue
+			} else if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedFrequencies++
 				feed.warn(e)
 				continue
@@ -1248,7 +1298,7 @@ func (feed *Feed) parseFareAttributes(path string, prefix string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseFareAttributeRules(path string, prefix string) (err error) {
+func (feed *Feed) parseFareAttributeRules(path string, prefix string, filteredRoutes map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "fare_rules.txt")
 
 	if e != nil {
@@ -1280,7 +1330,15 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string) (err error
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		fare, rule, e := createFareRule(record, flds, feed, prefix)
 		if e != nil {
-			if feed.opts.DropErroneous {
+			routeNotFoundErr, routeNotFound := e.(*RouteNotFoundErr)
+			wasFiltered := false
+			if routeNotFound {
+				_, wasFiltered = filteredRoutes[routeNotFoundErr.RouteId()]
+			}
+
+			if wasFiltered {
+				continue
+			} else if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedFareAttributeRules++
 				feed.warn(e)
 				continue
@@ -1309,7 +1367,7 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string) (err error
 	return e
 }
 
-func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[string]struct{}) (err error) {
+func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[string]struct{}, filteredRoutes map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "transfers.txt")
 
 	if e != nil {
@@ -1522,7 +1580,7 @@ func (feed *Feed) parseTranslations(path string, prefix string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseAttributions(path string, prefix string) (err error) {
+func (feed *Feed) parseAttributions(path string, prefix string, filteredRoutes map[string]struct{}, filteredTrips map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "attributions.txt")
 
 	if e != nil {
@@ -1568,7 +1626,20 @@ func (feed *Feed) parseAttributions(path string, prefix string) (err error) {
 			ids[attr.Id] = true
 		}
 		if e != nil {
-			if feed.opts.DropErroneous {
+			routeNotFoundErr, routeNotFound := e.(*RouteNotFoundErr)
+			wasFiltered := false
+			if routeNotFound {
+				_, wasFiltered = filteredRoutes[routeNotFoundErr.RouteId()]
+			}
+
+			tripNotFoundErr, tripNotFound := e.(*TripNotFoundErr)
+			if tripNotFound {
+				_, wasFiltered = filteredTrips[tripNotFoundErr.TripId()]
+			}
+
+			if wasFiltered {
+				continue
+			} else if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedAttributions++
 				feed.warn(e)
 				continue
@@ -1913,7 +1984,7 @@ func (feed *Feed) DeletePathway(id string) {
 	delete(feed.FareAttributes, id)
 
 	// delete additional fields from CSV
-	for k, _ := range feed.PathwaysAddFlds {
+	for k := range feed.PathwaysAddFlds {
 		delete(feed.PathwaysAddFlds[k], id)
 	}
 }
@@ -1922,11 +1993,11 @@ func (feed *Feed) DeleteFareAttribute(id string) {
 	delete(feed.FareAttributes, id)
 
 	// delete additional fields from CSV
-	for k, _ := range feed.FareRulesAddFlds {
+	for k := range feed.FareRulesAddFlds {
 		delete(feed.FareRulesAddFlds[k], id)
 	}
 
-	for k, _ := range feed.FareAttributesAddFlds {
+	for k := range feed.FareAttributesAddFlds {
 		delete(feed.FareAttributesAddFlds[k], id)
 	}
 }
@@ -1935,15 +2006,15 @@ func (feed *Feed) DeleteTrip(id string) {
 	delete(feed.Trips, id)
 
 	// delete additional fields from CSV
-	for k, _ := range feed.TripsAddFlds {
+	for k := range feed.TripsAddFlds {
 		delete(feed.TripsAddFlds[k], id)
 	}
 
-	for k, _ := range feed.StopTimesAddFlds {
+	for k := range feed.StopTimesAddFlds {
 		delete(feed.StopTimesAddFlds[k], id)
 	}
 
-	for k, _ := range feed.FrequenciesAddFlds {
+	for k := range feed.FrequenciesAddFlds {
 		delete(feed.FrequenciesAddFlds[k], id)
 	}
 }
@@ -1952,7 +2023,7 @@ func (feed *Feed) DeleteShape(id string) {
 	delete(feed.Shapes, id)
 
 	// delete additional fields from CSV
-	for k, _ := range feed.ShapesAddFlds {
+	for k := range feed.ShapesAddFlds {
 		delete(feed.ShapesAddFlds[k], id)
 	}
 }
@@ -1961,7 +2032,7 @@ func (feed *Feed) DeleteAgency(id string) {
 	delete(feed.Agencies, id)
 
 	// delete additional fields from CSV
-	for k, _ := range feed.AgenciesAddFlds {
+	for k := range feed.AgenciesAddFlds {
 		delete(feed.AgenciesAddFlds[k], id)
 	}
 }
@@ -1970,7 +2041,7 @@ func (feed *Feed) DeleteRoute(id string) {
 	delete(feed.Routes, id)
 
 	// delete additional fields from CSV
-	for k, _ := range feed.RoutesAddFlds {
+	for k := range feed.RoutesAddFlds {
 		delete(feed.RoutesAddFlds[k], id)
 	}
 }
@@ -1979,7 +2050,7 @@ func (feed *Feed) DeleteLevel(id string) {
 	delete(feed.Levels, id)
 
 	// delete additional fields from CSV
-	for k, _ := range feed.LevelsAddFlds {
+	for k := range feed.LevelsAddFlds {
 		delete(feed.LevelsAddFlds[k], id)
 	}
 }
@@ -1988,7 +2059,7 @@ func (feed *Feed) DeleteStop(id string) {
 	delete(feed.Stops, id)
 
 	// delete additional fields from CSV
-	for k, _ := range feed.StopsAddFlds {
+	for k := range feed.StopsAddFlds {
 		delete(feed.StopsAddFlds[k], id)
 	}
 }
