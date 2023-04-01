@@ -1286,7 +1286,7 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 	}
 
 	a.Short_name = getString(flds.tripShortName, r, flds, false, false, "")
-	a.Direction_id = int8(getRangeInt(flds.directionId, r, flds, false, 0, 1))
+	a.Direction_id = int8(getRangeIntWithDefault(flds.directionId, r, flds, 0, 1, -1, feed.opts.UseDefValueOnError, feed))
 	a.Block_id = prefix + getString(flds.blockId, r, flds, false, false, "")
 	if len(a.Block_id) == len(prefix) {
 		a.Block_id = ""
