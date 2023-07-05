@@ -29,7 +29,7 @@ type Fields interface {
 func addiFields(header []string, flds Fields) []int {
 	a := make([]int, 0)
 
-	for i := range header {
+	for i := range header[:] {
 		if len(flds.FldName(i)) == 0 {
 			a = append(a, i)
 		}
@@ -2109,7 +2109,7 @@ func checkShapePointOrdering(seq uint32, sts gtfs.ShapePoints) bool {
 }
 
 func checkStopTimesOrdering(seq int, sts gtfs.StopTimes) bool {
-	for _, st := range sts {
+	for _, st := range sts[:] {
 		if seq == st.Sequence() {
 			return false
 		}
