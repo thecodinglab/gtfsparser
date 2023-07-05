@@ -1,5 +1,5 @@
-// Copyright 2015 geOps
-// Authors: patrick.brosi@geops.de
+// Copyright 2023 Patrick Brosi
+// Authors: info@patrickbrosi.de
 //
 // Use of this source code is governed by a GPL v2
 // license that can be found in the LICENSE file
@@ -12,18 +12,102 @@ import (
 
 // A Service object describes exactly on what days a trip is served
 type Service struct {
-	Id         string
-	Daymap     [7]bool
-	Start_date Date
-	End_date   Date
-	Exceptions map[Date]bool
+	id         string
+	daymap     uint8
+	start_date Date
+	end_date   Date
+	exceptions map[Date]bool
+}
+
+func EmptyService() *Service {
+	return &Service{"", 0, Date{}, Date{}, make(map[Date]bool, 0)}
+}
+
+func (s *Service) Daymap(i int) bool {
+	return (s.daymap & (1 << i)) > 0
+}
+
+func (s *Service) SetDaymap(i int, v bool) {
+	if v {
+		s.daymap |= (1 << i)
+	} else {
+		s.daymap &= ^(1 << i)
+	}
+}
+
+func (s *Service) SetRawDaymap(i uint8) {
+	s.daymap = i
+}
+
+func (s *Service) RawDaymap() uint8 {
+	return s.daymap
+}
+
+func (s *Service) Id() string {
+	return s.id
+}
+
+func (s *Service) SetId(id string) {
+	s.id = id
+}
+
+func (s *Service) Start_date() Date {
+	return s.start_date
+}
+
+func (s *Service) SetStart_date(d Date) {
+	s.start_date = d
+}
+
+func (s *Service) End_date() Date {
+	return s.end_date
+}
+
+func (s *Service) SetEnd_date(d Date) {
+	s.end_date = d
+}
+
+func (s *Service) Exceptions() map[Date]bool {
+	return s.exceptions
+}
+
+func (s *Service) SetExceptions(e map[Date]bool) {
+	s.exceptions = e
 }
 
 // A Date object as used in GTFS
 type Date struct {
-	Day   int8
-	Month int8
-	Year  int16
+	day   uint8
+	month uint8
+	year  uint8
+}
+
+func NewDate(day uint8, month uint8, year uint16) Date {
+	return Date{day, month, uint8(year - 1900)}
+}
+
+func (d Date) IsEmpty() bool {
+	return d.day == 0 && d.month == 0 && d.year == 0
+}
+
+func (d Date) Day() uint8 {
+	return d.day
+}
+
+func (d *Date) SetDay(day uint8) {
+	d.day = day
+}
+
+func (d Date) Month() uint8 {
+	return d.month
+}
+
+func (d Date) Year() uint16 {
+	return uint16(d.year) + 1900
+}
+
+func (d *Date) SetYear(year uint16) {
+	d.year = uint8(year - 1900)
 }
 
 // IsActiveOn returns true if the service is active on a particular date
@@ -36,12 +120,12 @@ func (s *Service) IsActiveOn(d Date) bool {
 		return false
 	}
 	t := d.GetTime()
-	return s.Daymap[int(t.Weekday())] && !(t.Before(s.Start_date.GetTime())) && !(t.After(s.End_date.GetTime()))
+	return s.Daymap(int(t.Weekday())) && !(t.Before(s.Start_date().GetTime())) && !(t.After(s.End_date().GetTime()))
 }
 
 // GetExceptionTypeOn returns the expection type on a particular day
 func (s *Service) GetExceptionTypeOn(d Date) int8 {
-	if t, ok := s.Exceptions[d]; ok {
+	if t, ok := s.Exceptions()[d]; ok {
 		if t {
 			return 1
 		} else {
@@ -55,22 +139,22 @@ func (s *Service) GetExceptionTypeOn(d Date) int8 {
 // SetExceptionTypeOn sets the expection type on a particular day
 func (s *Service) SetExceptionTypeOn(d Date, t int8) {
 	if t == 1 {
-		s.Exceptions[d] = true
+		s.Exceptions()[d] = true
 	} else if t == 2 {
-		s.Exceptions[d] = false
+		s.Exceptions()[d] = false
 	}
 }
 
 // GetGtfsDateFromTime constructs a GTFS Date object from a Time object
 func GetGtfsDateFromTime(t time.Time) Date {
-	return Date{int8(t.Day()), int8(t.Month()), int16(t.Year())}
+	return NewDate(uint8(t.Day()), uint8(t.Month()), uint16(t.Year()))
 }
 
 // GetOffsettedDate returns a date offsetted by a certain number of days
 func (d Date) GetOffsettedDate(offset int) Date {
-	if (offset == 1 || offset == -1) && d.Day > 1 && d.Day < 27 {
+	if (offset == 1 || offset == -1) && d.Day() > 1 && d.Day() < 27 {
 		// shortcut
-		d.Day += int8(offset)
+		d.SetDay(uint8(int(d.Day()) + offset))
 		return d
 	}
 	return GetGtfsDateFromTime((d.GetTime().AddDate(0, 0, offset)))
@@ -85,8 +169,8 @@ func (s *Service) Equals(b *Service) bool {
 	}
 
 	// shortcut
-	if s.Start_date.Year > 0 && b.Start_date.Year > 0 && len(s.Exceptions) == 0 && len(b.Exceptions) == 0 {
-		return s.Start_date == b.Start_date && s.End_date == b.End_date && s.Daymap[0] == b.Daymap[0] && s.Daymap[1] == b.Daymap[1] && s.Daymap[2] == b.Daymap[2] && s.Daymap[3] == b.Daymap[3] && s.Daymap[4] == b.Daymap[4] && s.Daymap[5] == b.Daymap[5] && s.Daymap[6] == b.Daymap[6]
+	if !s.Start_date().IsEmpty() && !b.Start_date().IsEmpty() && len(s.Exceptions()) == 0 && len(b.Exceptions()) == 0 {
+		return s.Start_date() == b.Start_date() && s.End_date() == b.End_date() && s.RawDaymap() == b.RawDaymap()
 	}
 
 	startA := s.GetFirstDefinedDate()
@@ -125,14 +209,14 @@ func (s *Service) Equals(b *Service) bool {
 func (s *Service) GetFirstDefinedDate() Date {
 	var first Date
 
-	for date := range s.Exceptions {
-		if first.Year == 0 || date.GetTime().Before(first.GetTime()) {
+	for date := range s.Exceptions() {
+		if first.IsEmpty() || date.GetTime().Before(first.GetTime()) {
 			first = date
 		}
 	}
 
-	if first.Year == 0 || (s.Start_date.Year > 0 && s.Start_date.GetTime().Before(first.GetTime())) {
-		first = s.Start_date
+	if first.IsEmpty() || (!s.Start_date().IsEmpty() && s.Start_date().GetTime().Before(first.GetTime())) {
+		first = s.Start_date()
 	}
 
 	return first
@@ -143,14 +227,14 @@ func (s *Service) GetFirstDefinedDate() Date {
 func (s *Service) GetLastDefinedDate() Date {
 	var last Date
 
-	for date := range s.Exceptions {
-		if last.Year == 0 || date.GetTime().After(last.GetTime()) {
+	for date := range s.Exceptions() {
+		if last.IsEmpty() || date.GetTime().After(last.GetTime()) {
 			last = date
 		}
 	}
 
-	if last.Year == 0 || (s.End_date.Year > 0 && s.End_date.GetTime().After(last.GetTime())) {
-		last = s.End_date
+	if last.IsEmpty() || (!s.End_date().IsEmpty() && s.End_date().GetTime().After(last.GetTime())) {
+		last = s.End_date()
 	}
 
 	return last
@@ -166,7 +250,7 @@ func (s *Service) GetFirstActiveDate() Date {
 		}
 	}
 
-	return Date{-1, -1, -1}
+	return Date{}
 }
 
 // GetLastActiveDate returns the first active date of this service
@@ -179,21 +263,14 @@ func (s *Service) GetLastActiveDate() Date {
 		}
 	}
 
-	return Date{-1, -1, -1}
+	return Date{}
 }
 
 func (d *Service) IsEmpty() bool {
-	return d.Daymap[0] == false &&
-		d.Daymap[1] == false &&
-		d.Daymap[2] == false &&
-		d.Daymap[3] == false &&
-		d.Daymap[4] == false &&
-		d.Daymap[5] == false &&
-		d.Daymap[6] == false &&
-		len(d.Exceptions) == 0
+	return d.RawDaymap() == 0 && len(d.Exceptions()) == 0
 }
 
 // GetTime constructs a time object from this date, at 12:00:00 noon
 func (d Date) GetTime() time.Time {
-	return time.Date(int(d.Year), time.Month(d.Month), int(d.Day), 12, 0, 0, 0, time.UTC)
+	return time.Date(int(d.Year()), time.Month(d.Month()), int(d.Day()), 12, 0, 0, 0, time.UTC)
 }

@@ -1,4 +1,4 @@
-// Copyright 2016 Patrick Brosi
+// Copyright 2023 Patrick Brosi
 // Authors: info@patrickbrosi.de
 //
 // Use of this source code is governed by a GPL v2
@@ -15,6 +15,7 @@ import (
 	"math"
 	"os"
 	opath "path"
+	"runtime"
 	"sort"
 )
 
@@ -181,7 +182,7 @@ func NewFeed() *Feed {
 		AttributionsAddFlds:   make(map[string]map[*gtfs.Attribution]string),
 		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		NumShpPoints:          0,
-		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{Day: 0, Month: 0, Year: 0}, gtfs.Date{Day: 0, Month: 0, Year: 0}, make([]Polygon, 0), false, make(map[int16]bool, 0)},
+		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{}, gtfs.Date{}, make([]Polygon, 0), false, make(map[int16]bool, 0)},
 	}
 	g.lastString = &g.emptyString
 	return &g
@@ -221,33 +222,43 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if e == nil {
 		e = feed.parseFeedInfos(path)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseLevels(path, prefix)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseStops(path, prefix, geofilteredStops)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.reserveShapes(path, prefix)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseShapes(path, prefix)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseRoutes(path, prefix, filteredRoutes)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseCalendar(path, prefix)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseCalendarDates(path, prefix)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseTrips(path, prefix, filteredRoutes, filteredTrips)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.reserveStopTimes(path, prefix, filteredTrips)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseStopTimes(path, prefix, geofilteredStops, filteredTrips)
 	}
@@ -261,24 +272,31 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 			}
 		}
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseFareAttributes(path, prefix)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseFareAttributeRules(path, prefix, filteredRoutes)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseFrequencies(path, prefix, filteredTrips)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseTransfers(path, prefix, geofilteredStops, filteredRoutes)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parsePathways(path, prefix, geofilteredStops)
 	}
+	runtime.GC()
 	if e == nil {
 		e = feed.parseAttributions(path, prefix, filteredRoutes, filteredTrips)
 	}
+	runtime.GC()
 	// if e == nil {
 	// e = feed.parseTranslations(path, prefix)
 	// }
@@ -294,9 +312,11 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		feed.curFileHandle = nil
 	}
 
-	if feed.opts.DateFilterStart.Year > 0 || feed.opts.DateFilterEnd.Year > 0 {
+	if !feed.opts.DateFilterStart.IsEmpty() || !feed.opts.DateFilterEnd.IsEmpty() {
 		feed.filterServices(prefix)
 	}
+
+	runtime.GC()
 
 	return e
 }
@@ -305,14 +325,14 @@ func (feed *Feed) filterServices(prefix string) {
 	toDel := make([]*gtfs.Service, 0)
 	for _, t := range feed.Trips {
 		s := t.Service
-		if (s.IsEmpty() && s.Start_date.Year == 0 && s.End_date.Year == 0) || s.GetFirstActiveDate().Day < 0 {
+		if (s.IsEmpty() && s.Start_date().IsEmpty() && s.End_date().IsEmpty()) || s.GetFirstActiveDate().IsEmpty() {
 			delete(feed.Trips, t.Id)
 			toDel = append(toDel, s)
 		}
 	}
 
 	for _, s := range toDel {
-		delete(feed.Services, s.Id)
+		delete(feed.Services, s.Id())
 	}
 }
 
@@ -722,31 +742,25 @@ func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 		// if service was parsed in-place, nil was returned
 		if service != nil {
 			if feed.opts.DryRun {
-				feed.Services[service.Id] = nil
+				feed.Services[service.Id()] = nil
 			} else {
-				feed.Services[service.Id] = service
+				feed.Services[service.Id()] = service
 
 				// check if service is completely out of range
-				if feed.opts.DateFilterStart.Year > 0 && service.End_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) || feed.opts.DateFilterEnd.Year > 0 && service.Start_date.GetTime().After(feed.opts.DateFilterEnd.GetTime()) {
-					service.Daymap[0] = false
-					service.Daymap[1] = false
-					service.Daymap[2] = false
-					service.Daymap[3] = false
-					service.Daymap[4] = false
-					service.Daymap[5] = false
-					service.Daymap[6] = false
+				if !feed.opts.DateFilterStart.IsEmpty() && service.End_date().GetTime().Before(feed.opts.DateFilterStart.GetTime()) || !feed.opts.DateFilterEnd.IsEmpty() && service.Start_date().GetTime().After(feed.opts.DateFilterEnd.GetTime()) {
+					service.SetRawDaymap(0)
 				} else {
 					// we overlap, there are now two cases:
 
 					// 1. A start date is defined, and the service starts before the start time. Set the start time to the new start time
-					if feed.opts.DateFilterStart.Year > 0 && service.Start_date.GetTime().Before(feed.opts.DateFilterStart.GetTime()) {
-						service.Start_date = feed.opts.DateFilterStart
+					if !feed.opts.DateFilterStart.IsEmpty() && service.Start_date().GetTime().Before(feed.opts.DateFilterStart.GetTime()) {
+						service.SetStart_date(feed.opts.DateFilterStart)
 						// note: because of the check above, End_date is guaranteed to >= DateFilterStart, so our service remains valid
 					}
 
 					// 2. An end date is defined, and the service ends after the start time. Set the end  time to the new end time
-					if feed.opts.DateFilterEnd.Year > 0 && service.End_date.GetTime().After(feed.opts.DateFilterEnd.GetTime()) {
-						service.End_date = feed.opts.DateFilterEnd
+					if !feed.opts.DateFilterEnd.IsEmpty() && service.End_date().GetTime().After(feed.opts.DateFilterEnd.GetTime()) {
+						service.SetEnd_date(feed.opts.DateFilterEnd)
 						// note: because of the check above, Start_date is guaranteed to <= DateFilterEnd, so our service remains valid
 					}
 				}
@@ -797,9 +811,9 @@ func (feed *Feed) parseCalendarDates(path string, prefix string) (err error) {
 		// if service was parsed in-place, nil was returned
 		if service != nil {
 			if feed.opts.DryRun {
-				feed.Services[service.Id] = nil
+				feed.Services[service.Id()] = nil
 			} else {
-				feed.Services[service.Id] = service
+				feed.Services[service.Id()] = service
 			}
 		}
 	}
@@ -853,7 +867,7 @@ func (feed *Feed) parseTrips(path string, prefix string, filteredRoutes map[stri
 			tripId = trip.Id
 			trip.Id = ""
 			dummy := gtfs.StopTime{}
-			dummy.Sequence = 0
+			dummy.SetSequence(0)
 			trip.StopTimes = append(trip.StopTimes, dummy)
 			if _, ok := feed.Trips[tripId]; ok {
 				e = errors.New("ID collision, trip_id '" + tripId + "' already used.")
@@ -921,7 +935,13 @@ func (feed *Feed) reserveShapes(path string, prefix string) (err error) {
 		shapePtSequence:   reader.headeridx.GetFldId("shape_pt_sequence"),
 	}
 
+	i := 0
+
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		if i%10000000 == 0 {
+			runtime.GC()
+		}
+		i += 1
 		e := reserveShapePoint(record, flds, feed, prefix)
 		if e != nil {
 			if feed.opts.DropErroneous {
@@ -967,8 +987,17 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 	if feed.opts.KeepAddFlds {
 		addFlds = addiFields(reader.header, flds)
 	}
+
+	i := 0
+
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		if i%10000000 == 0 {
+			runtime.GC()
+		}
+		i += 1
+
 		shape, sp, e := createShapePoint(record, flds, feed, prefix)
+
 		if e != nil {
 			if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedShapes++
@@ -987,7 +1016,7 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 						feed.ShapesAddFlds[reader.header[i]][shape.Id] = make(map[int]string)
 					}
 
-					feed.ShapesAddFlds[reader.header[i]][shape.Id][sp.Sequence] = record[i]
+					feed.ShapesAddFlds[reader.header[i]][shape.Id][int(sp.Sequence)] = record[i]
 				}
 			}
 		}
@@ -1057,7 +1086,13 @@ func (feed *Feed) reserveStopTimes(path string, prefix string, filteredTrips map
 		timepoint:         reader.headeridx.GetFldId("timepoint"),
 	}
 
+	i := 0
+
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		if i%10000000 == 0 {
+			runtime.GC()
+		}
+		i += 1
 		e := reserveStopTime(record, flds, feed, prefix)
 
 		if e != nil {
@@ -1110,7 +1145,14 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 		addFlds = addiFields(reader.header, flds)
 	}
 
+	i := 0
+
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
+		if i%10000000 == 0 {
+			runtime.GC()
+		}
+		i += 1
+
 		trip, st, e := createStopTime(record, flds, feed, prefix)
 
 		if e != nil {
@@ -1144,7 +1186,7 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 						feed.StopTimesAddFlds[reader.header[i]][trip.Id] = make(map[int]string)
 					}
 
-					feed.StopTimesAddFlds[reader.header[i]][trip.Id][st.Sequence] = record[i]
+					feed.StopTimesAddFlds[reader.header[i]][trip.Id][st.Sequence()] = record[i]
 				}
 			}
 		}
@@ -1832,8 +1874,8 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 	for j := 1; j < len(trip.StopTimes)+deleted; j++ {
 		i := j - deleted
 
-		if !trip.StopTimes[i-1].Departure_time.Empty() && !trip.StopTimes[i].Arrival_time.Empty() && trip.StopTimes[i-1].Departure_time.SecondsSinceMidnight() > trip.StopTimes[i].Arrival_time.SecondsSinceMidnight() {
-			e := fmt.Errorf("In trip '%s' for stoptime with seq=%d the arrival time is before the departure in the previous station", trip.Id, trip.StopTimes[i].Sequence)
+		if !trip.StopTimes[i-1].Departure_time().Empty() && !trip.StopTimes[i].Arrival_time().Empty() && trip.StopTimes[i-1].Departure_time().SecondsSinceMidnight() > trip.StopTimes[i].Arrival_time().SecondsSinceMidnight() {
+			e := fmt.Errorf("In trip '%s' for stoptime with seq=%d the arrival time is before the departure in the previous station", trip.Id, trip.StopTimes[i].Sequence())
 			if opt.DropErroneous {
 				feed.ErrorStats.DroppedStopTimes++
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
@@ -1845,14 +1887,14 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 			}
 		}
 
-		if trip.StopTimes[i-1].HasDistanceTraveled() && trip.StopTimes[i-1].Shape_dist_traveled > max {
-			max = trip.StopTimes[i-1].Shape_dist_traveled
+		if trip.StopTimes[i-1].HasDistanceTraveled() && trip.StopTimes[i-1].Shape_dist_traveled() > max {
+			max = trip.StopTimes[i-1].Shape_dist_traveled()
 		}
 
-		if trip.StopTimes[i].HasDistanceTraveled() && max > trip.StopTimes[i].Shape_dist_traveled {
-			e := fmt.Errorf("In trip '%s' for stoptime with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence, max, trip.StopTimes[i].Shape_dist_traveled)
+		if trip.StopTimes[i].HasDistanceTraveled() && max > trip.StopTimes[i].Shape_dist_traveled() {
+			e := fmt.Errorf("In trip '%s' for stoptime with seq=%d shape_dist_traveled does not increase along with stop_sequence (%f > %f)", trip.Id, trip.StopTimes[i].Sequence(), max, trip.StopTimes[i].Shape_dist_traveled())
 			if opt.UseDefValueOnError {
-				trip.StopTimes[i].Shape_dist_traveled = float32(math.NaN())
+				trip.StopTimes[i].SetShape_dist_traveled(float32(math.NaN()))
 				feed.warn(e)
 			} else if opt.DropErroneous {
 				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]

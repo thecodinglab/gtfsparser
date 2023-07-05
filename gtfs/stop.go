@@ -19,15 +19,15 @@ type Stop struct {
 	Desc                string
 	Lat                 float32
 	Lon                 float32
+	Location_type       int8
+	Wheelchair_boarding int8
 	Zone_id             string
 	Url                 *url.URL
-	Location_type       int8
 	Parent_station      *Stop
-	Timezone            Timezone
-	Wheelchair_boarding int8
+	Translations        []*Translation
 	Level               *Level
 	Platform_code       string
-	Translations        []*Translation
+	Timezone            Timezone
 }
 
 // HasLatLon returns true if this Stop has a latitude and longitude
