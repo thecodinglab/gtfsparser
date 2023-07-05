@@ -24,14 +24,14 @@ func EmptyService() *Service {
 }
 
 func (s *Service) Daymap(i int) bool {
-	return (s.daymap & (1 << i)) > 0
+	return (s.daymap & (1 << uint8(i))) > 0
 }
 
 func (s *Service) SetDaymap(i int, v bool) {
 	if v {
-		s.daymap |= (1 << i)
+		s.daymap |= (1 << uint8(i))
 	} else {
-		s.daymap &= ^(1 << i)
+		s.daymap &= ^(1 << uint8(i))
 	}
 }
 
