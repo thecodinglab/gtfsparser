@@ -1331,7 +1331,7 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 
 	// check if any defined PolygonFilter contains the shape point
 	contains := true
-	for _, poly := range feed.opts.PolygonFilter {
+	for _, poly := range feed.opts.PolygonFilter[:] {
 		contains = false
 		if poly.PolyContains(float64(lon), float64(lat)) {
 			contains = true
@@ -1400,7 +1400,7 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 
 	// check if any defined PolygonFilter contains the shape point
 	contains := true
-	for _, poly := range feed.opts.PolygonFilter {
+	for _, poly := range feed.opts.PolygonFilter[:] {
 		contains = false
 		if poly.PolyContains(float64(lon), float64(lat)) {
 			contains = true
@@ -2099,7 +2099,7 @@ func getDate(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed
 }
 
 func checkShapePointOrdering(seq uint32, sts gtfs.ShapePoints) bool {
-	for _, st := range sts {
+	for _, st := range sts[:] {
 		if seq == st.Sequence {
 			return false
 		}
