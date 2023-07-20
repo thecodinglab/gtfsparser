@@ -1533,31 +1533,29 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) 
 	return fareattr, rule, nil
 }
 
-func createTransfer(r []string, flds TransferFields, feed *Feed, prefix string) (t *gtfs.Transfer, err error) {
+func createTransfer(r []string, flds TransferFields, feed *Feed, prefix string) (tk gtfs.TransferKey, tv gtfs.TransferVal, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
 		}
 	}()
 
-	a := new(gtfs.Transfer)
-
 	if val, ok := feed.Stops[prefix+getString(flds.FromStopId, r, flds, true, true, "")]; ok {
-		a.From_stop = val
+		tk.From_stop = val
 	} else {
 		panic(&StopNotFoundErr{prefix, getString(flds.FromStopId, r, flds, true, true, "")})
 	}
 
 	if val, ok := feed.Stops[prefix+getString(flds.ToStopId, r, flds, true, true, "")]; ok {
-		a.To_stop = val
+		tk.To_stop = val
 	} else {
 		panic(&StopNotFoundErr{prefix, getString(flds.ToStopId, r, flds, true, true, "")})
 	}
 
-	a.Transfer_type = getRangeInt(flds.TransferType, r, flds, false, 0, 3)
-	a.Min_transfer_time = getPositiveIntWithDefault(flds.MinTransferTime, r, flds, -1, feed.opts.UseDefValueOnError, feed)
+	tv.Transfer_type = getRangeInt(flds.TransferType, r, flds, false, 0, 3)
+	tv.Min_transfer_time = getPositiveIntWithDefault(flds.MinTransferTime, r, flds, -1, feed.opts.UseDefValueOnError, feed)
 
-	return a, nil
+	return tk, tv, nil
 }
 
 func createPathway(r []string, flds PathwayFields, feed *Feed, prefix string) (t *gtfs.Pathway, err error) {

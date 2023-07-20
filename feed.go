@@ -115,7 +115,7 @@ type Feed struct {
 	Shapes         map[string]*gtfs.Shape
 	Levels         map[string]*gtfs.Level
 	Pathways       map[string]*gtfs.Pathway
-	Transfers      []*gtfs.Transfer
+	Transfers      map[gtfs.TransferKey]gtfs.TransferVal
 	FeedInfos      []*gtfs.FeedInfo
 
 	StopsAddFlds          map[string]map[string]string
@@ -129,7 +129,7 @@ type Feed struct {
 	LevelsAddFlds         map[string]map[string]string
 	PathwaysAddFlds       map[string]map[string]string
 	FareAttributesAddFlds map[string]map[string]string
-	TransfersAddFlds      map[string]map[*gtfs.Transfer]string
+	TransfersAddFlds      map[string]map[gtfs.TransferKey]string
 	FeedInfosAddFlds      map[string]map[*gtfs.FeedInfo]string
 	AttributionsAddFlds   map[string]map[*gtfs.Attribution]string
 	TranslationsAddFlds   map[string]map[*gtfs.Translation]string
@@ -163,7 +163,7 @@ func NewFeed() *Feed {
 		Shapes:                make(map[string]*gtfs.Shape),
 		Levels:                make(map[string]*gtfs.Level),
 		Pathways:              make(map[string]*gtfs.Pathway),
-		Transfers:             make([]*gtfs.Transfer, 0),
+		Transfers:             make(map[gtfs.TransferKey]gtfs.TransferVal, 0),
 		FeedInfos:             make([]*gtfs.FeedInfo, 0),
 		StopsAddFlds:          make(map[string]map[string]string),
 		StopTimesAddFlds:      make(map[string]map[string]map[int]string),
@@ -176,7 +176,7 @@ func NewFeed() *Feed {
 		PathwaysAddFlds:       make(map[string]map[string]string),
 		FareAttributesAddFlds: make(map[string]map[string]string),
 		FareRulesAddFlds:      make(map[string]map[string]map[*gtfs.FareAttributeRule]string),
-		TransfersAddFlds:      make(map[string]map[*gtfs.Transfer]string),
+		TransfersAddFlds:      make(map[string]map[gtfs.TransferKey]string),
 		FeedInfosAddFlds:      make(map[string]map[*gtfs.FeedInfo]string),
 		AttributionsAddFlds:   make(map[string]map[*gtfs.Attribution]string),
 		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -1375,9 +1375,6 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 	}
 	reader := NewCsvParser(file, feed.opts.DropErroneous)
 
-	// avoid duplicate transfers, they will not be noticed because they don't have unique IDs
-	inserted := make(map[gtfs.Transfer]bool)
-
 	defer func() {
 		if r := recover(); r != nil {
 			err = ParseError{"transfers.txt", reader.Curline, r.(error).Error()}
@@ -1398,7 +1395,7 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 		addFlds = addiFields(reader.header, flds)
 	}
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
-		t, e := createTransfer(record, flds, feed, prefix)
+		tk, tv, e := createTransfer(record, flds, feed, prefix)
 		if e != nil {
 			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
 			wasFiltered := false
@@ -1417,21 +1414,18 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 			}
 		}
 		if !feed.opts.DryRun {
-			if _, ok := inserted[*t]; !ok {
-				feed.Transfers = append(feed.Transfers, t)
+			// TODO: check for duplicates, handle them!
+			feed.Transfers[tk] = tv
 
-				// add additional CSV fields
-				for _, i := range addFlds {
-					if i < len(record) {
-						if _, ok := feed.TransfersAddFlds[reader.header[i]]; !ok {
-							feed.TransfersAddFlds[reader.header[i]] = make(map[*gtfs.Transfer]string)
-						}
-
-						feed.TransfersAddFlds[reader.header[i]][t] = record[i]
+			// add additional CSV fields
+			for _, i := range addFlds {
+				if i < len(record) {
+					if _, ok := feed.TransfersAddFlds[reader.header[i]]; !ok {
+						feed.TransfersAddFlds[reader.header[i]] = make(map[gtfs.TransferKey]string)
 					}
-				}
 
-				inserted[*t] = true
+					feed.TransfersAddFlds[reader.header[i]][tk] = record[i]
+				}
 			}
 		}
 	}

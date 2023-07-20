@@ -8,9 +8,13 @@ package gtfs
 
 // A Transfer describes a rule for making connections between routes at
 // certain stops
-type Transfer struct {
+
+type TransferKey struct {
 	From_stop         *Stop
 	To_stop           *Stop
+}
+
+type TransferVal struct {
 	Transfer_type     int
 	Min_transfer_time int
 }
