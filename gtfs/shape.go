@@ -21,7 +21,7 @@ type Shape struct {
 type ShapePoint struct {
 	Lat           float32
 	Lon           float32
-	Sequence      int
+	Sequence      uint32
 	Dist_traveled float32
 }
 

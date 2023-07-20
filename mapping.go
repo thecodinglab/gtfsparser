@@ -1,5 +1,5 @@
-// Copyright 2015 geOps
-// Authors: patrick.brosi@geops.de
+// Copyright 2023 Patrick Brosi
+// Authors: info@patrickbrosi.de
 //
 // Use of this source code is governed by a GPL v2
 // license that can be found in the LICENSE file
@@ -29,7 +29,7 @@ type Fields interface {
 func addiFields(header []string, flds Fields) []int {
 	a := make([]int, 0)
 
-	for i := range header {
+	for i := range header[:] {
 		if len(flds.FldName(i)) == 0 {
 			a = append(a, i)
 		}
@@ -937,23 +937,22 @@ func createServiceFromCalendar(r []string, flds CalendarFields, feed *Feed, pref
 		}
 	}()
 
-	service := new(gtfs.Service)
-	service.Id = prefix + getString(flds.serviceId, r, flds, true, true, "")
-	service.Exceptions = make(map[gtfs.Date]bool, 0)
+	service := gtfs.EmptyService()
+	service.SetId(prefix + getString(flds.serviceId, r, flds, true, true, ""))
 
 	// fill daybitmap
-	service.Daymap[1] = getBool(flds.monday, r, flds, true, false, feed.opts.UseDefValueOnError, feed)
-	service.Daymap[2] = getBool(flds.tuesday, r, flds, true, false, feed.opts.UseDefValueOnError, feed)
-	service.Daymap[3] = getBool(flds.wednesday, r, flds, true, false, feed.opts.UseDefValueOnError, feed)
-	service.Daymap[4] = getBool(flds.thursday, r, flds, true, false, feed.opts.UseDefValueOnError, feed)
-	service.Daymap[5] = getBool(flds.friday, r, flds, true, false, feed.opts.UseDefValueOnError, feed)
-	service.Daymap[6] = getBool(flds.saturday, r, flds, true, false, feed.opts.UseDefValueOnError, feed)
-	service.Daymap[0] = getBool(flds.sunday, r, flds, true, false, feed.opts.UseDefValueOnError, feed)
-	service.Start_date = getDate(flds.startDate, r, flds, true, false, feed)
-	service.End_date = getDate(flds.endDate, r, flds, true, false, feed)
+	service.SetDaymap(1, getBool(flds.monday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(2, getBool(flds.tuesday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(3, getBool(flds.wednesday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(4, getBool(flds.thursday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(5, getBool(flds.friday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(6, getBool(flds.saturday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(0, getBool(flds.sunday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetStart_date(getDate(flds.startDate, r, flds, true, false, feed))
+	service.SetEnd_date(getDate(flds.endDate, r, flds, true, false, feed))
 
-	if service.End_date.GetTime().Before(service.Start_date.GetTime()) {
-		return nil, errors.New("Service " + getString(flds.serviceId, r, flds, true, true, "") + " has the end date before the start date.")
+	if service.End_date().GetTime().Before(service.Start_date().GetTime()) {
+		return nil, errors.New("Service " + getString(flds.serviceId, r, flds, true, true, "") + " has end date before start date.")
 	}
 
 	return service, nil
@@ -973,9 +972,8 @@ func createServiceFromCalendarDates(r []string, flds CalendarDatesFields, feed *
 		service = val
 		update = true
 	} else {
-		service = new(gtfs.Service)
-		service.Id = prefix + getString(flds.serviceId, r, flds, true, true, "")
-		service.Exceptions = make(map[gtfs.Date]bool, 0)
+		service = gtfs.EmptyService()
+		service.SetId(prefix + getString(flds.serviceId, r, flds, true, true, ""))
 	}
 
 	// create exception
@@ -984,11 +982,11 @@ func createServiceFromCalendarDates(r []string, flds CalendarDatesFields, feed *
 
 	// may be nil during dry run
 	if service != nil {
-		if _, ok := service.Exceptions[date]; ok {
+		if _, ok := service.Exceptions()[date]; ok {
 			return nil, errors.New("Date exception for service id " + getString(flds.serviceId, r, flds, true, true, "") + " defined 2 times for one date.")
 		}
-		if (filterDateEnd.Year == 0 || !date.GetTime().After(filterDateEnd.GetTime())) &&
-			(filterDateStart.Year == 0 || !date.GetTime().Before(filterDateStart.GetTime())) {
+		if (filterDateEnd.IsEmpty() || !date.GetTime().After(filterDateEnd.GetTime())) &&
+			(filterDateStart.IsEmpty() || !date.GetTime().Before(filterDateStart.GetTime())) {
 			service.SetExceptionTypeOn(date, int8(t))
 		}
 	}
@@ -1115,7 +1113,7 @@ func reserveStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string)
 	}
 
 	if _, ok := feed.Stops[prefix+getString(flds.stopId, r, flds, true, true, "")]; ok {
-		trip.StopTimes[0].Sequence = trip.StopTimes[0].Sequence + 1
+		trip.StopTimes[0].SetSequence(trip.StopTimes[0].Sequence() + 1)
 	}
 
 	return nil
@@ -1128,7 +1126,7 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		}
 	}()
 	a := gtfs.StopTime{}
-	a.Headsign = &feed.emptyString
+	a.SetHeadsign(&feed.emptyString)
 	var trip *gtfs.Trip
 
 	tripId := prefix + getString(flds.tripId, r, flds, true, true, "")
@@ -1141,10 +1139,10 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 
 	toDel := false
 
-	if feed.opts.DateFilterStart.Year > 0 || feed.opts.DateFilterEnd.Year > 0 {
+	if !feed.opts.DateFilterStart.IsEmpty() || !feed.opts.DateFilterEnd.IsEmpty() {
 		// this trip will later be deleted - dont store stop times for it!
 		s := trip.Service
-		if (s.IsEmpty() && s.Start_date.Year == 0 && s.End_date.Year == 0) || s.GetFirstActiveDate().Day < 0 {
+		if (s.IsEmpty() && s.Start_date().IsEmpty() && s.End_date().IsEmpty()) || s.GetFirstActiveDate().IsEmpty() {
 			toDel = true
 		}
 	}
@@ -1152,48 +1150,48 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	if trip.Id != tripId {
 		trip.Id = tripId
 		if !toDel {
-			if trip.StopTimes[0].Sequence == 0 {
+			if trip.StopTimes[0].Sequence() == 0 {
 				trip.StopTimes = trip.StopTimes[:len(trip.StopTimes)-1]
 			} else {
-				trip.StopTimes = make(gtfs.StopTimes, 0, trip.StopTimes[0].Sequence)
+				trip.StopTimes = make(gtfs.StopTimes, 0, trip.StopTimes[0].Sequence())
 			}
 		}
 	}
 
 	if val, ok := feed.Stops[prefix+getString(flds.stopId, r, flds, true, true, "")]; ok {
-		a.Stop = val
+		a.SetStop(val)
 	} else {
 		panic(&StopNotFoundErr{prefix, getString(flds.stopId, r, flds, true, true, "")})
 	}
 
-	if a.Stop.Location_type != 0 {
-		panic(errors.New("Stop " + a.Stop.Id + " (" + a.Stop.Name + ") has location_type != 0, cannot be used in stop_times.txt!"))
+	if a.Stop().Location_type != 0 {
+		panic(errors.New("Stop " + a.Stop().Id + " (" + a.Stop().Name + ") has location_type != 0, cannot be used in stop_times.txt!"))
 	}
 
-	a.Arrival_time = getTime(flds.arrivalTime, r, flds)
-	a.Departure_time = getTime(flds.departureTime, r, flds)
+	a.SetArrival_time(getTime(flds.arrivalTime, r, flds))
+	a.SetDeparture_time(getTime(flds.departureTime, r, flds))
 
-	if a.Arrival_time.Empty() && !a.Departure_time.Empty() {
+	if a.Arrival_time().Empty() && !a.Departure_time().Empty() {
 		if feed.opts.UseDefValueOnError {
-			a.Arrival_time = a.Departure_time
+			a.SetArrival_time(a.Departure_time())
 		} else {
 			panic(errors.New("Missing arrival time for " + getString(flds.stopId, r, flds, true, true, "") + "."))
 		}
 	}
 
-	if !a.Arrival_time.Empty() && a.Departure_time.Empty() {
+	if !a.Arrival_time().Empty() && a.Departure_time().Empty() {
 		if feed.opts.UseDefValueOnError {
-			a.Departure_time = a.Arrival_time
+			a.SetDeparture_time(a.Arrival_time())
 		} else {
 			panic(errors.New("Missing departure time for " + getString(flds.stopId, r, flds, true, true, "") + "."))
 		}
 	}
 
-	if a.Arrival_time.SecondsSinceMidnight() > a.Departure_time.SecondsSinceMidnight() {
+	if a.Arrival_time().SecondsSinceMidnight() > a.Departure_time().SecondsSinceMidnight() {
 		panic(errors.New("Departure before arrival at stop " + getString(flds.stopId, r, flds, true, true, "") + "."))
 	}
 
-	a.Sequence = getPositiveInt(flds.stopSequence, r, flds, true)
+	a.SetSequence(getRangeInt(flds.stopSequence, r, flds, true, 0, int(^uint32(0)>>1)))
 	headsign := getString(flds.stopHeadsign, r, flds, false, false, "")
 
 	// only store headsigns that are different to the default trip headsign
@@ -1201,21 +1199,21 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		if *feed.lastString != headsign {
 			feed.lastString = &headsign
 		}
-		a.Headsign = feed.lastString
+		a.SetHeadsign(feed.lastString)
 	}
 
-	a.Pickup_type = int8(getRangeInt(flds.pickupType, r, flds, false, 0, 3))
-	a.Drop_off_type = int8(getRangeInt(flds.dropOffType, r, flds, false, 0, 3))
-	a.Continuous_pickup = int8(getRangeIntWithDefault(flds.continuousPickup, r, flds, 0, 3, 1, feed.opts.UseDefValueOnError, feed))
-	a.Continuous_drop_off = int8(getRangeIntWithDefault(flds.continuousDropOff, r, flds, 0, 3, 1, feed.opts.UseDefValueOnError, feed))
+	a.SetPickup_type(uint8(getRangeInt(flds.pickupType, r, flds, false, 0, 3)))
+	a.SetDrop_off_type(uint8(getRangeInt(flds.dropOffType, r, flds, false, 0, 3)))
+	a.SetContinuous_pickup(uint8(getRangeIntWithDefault(flds.continuousPickup, r, flds, 0, 3, 1, feed.opts.UseDefValueOnError, feed)))
+	a.SetContinuous_drop_off(uint8(getRangeIntWithDefault(flds.continuousDropOff, r, flds, 0, 3, 1, feed.opts.UseDefValueOnError, feed)))
 	dist := getNullableFloat(flds.shapeDistTraveled, r, flds, feed.opts.UseDefValueOnError, feed)
-	a.Shape_dist_traveled = dist
-	a.Timepoint = getBool(flds.timepoint, r, flds, false, !a.Arrival_time.Empty() && !a.Departure_time.Empty(), feed.opts.UseDefValueOnError, feed)
+	a.SetShape_dist_traveled(dist)
+	a.SetTimepoint(getBool(flds.timepoint, r, flds, false, !a.Arrival_time().Empty() && !a.Departure_time().Empty(), feed.opts.UseDefValueOnError, feed))
 
-	if (a.Arrival_time.Empty() || a.Departure_time.Empty()) && a.Timepoint {
+	if (a.Arrival_time().Empty() || a.Departure_time().Empty()) && a.Timepoint() {
 		locErr := errors.New("Stops with timepoint=1 cannot have empty arrival or departure time")
 		if feed.opts.UseDefValueOnError {
-			a.Timepoint = false
+			a.SetTimepoint(false)
 			feed.warn(locErr)
 		} else if !feed.opts.DropErroneous {
 			panic(locErr)
@@ -1224,7 +1222,7 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	}
 
 	if !toDel {
-		if checkStopTimesOrdering(a.Sequence, trip.StopTimes) {
+		if checkStopTimesOrdering(a.Sequence(), trip.StopTimes) {
 			trip.StopTimes = append(trip.StopTimes, a)
 		} else {
 			locErr := errors.New("Stop time sequence collision. Sequence has to increase along trip")
@@ -1262,10 +1260,10 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 
 	toDel := false
 
-	if feed.opts.DateFilterStart.Year > 0 || feed.opts.DateFilterEnd.Year > 0 {
+	if !feed.opts.DateFilterStart.IsEmpty() || !feed.opts.DateFilterEnd.IsEmpty() {
 		// this trip will later be deleted - dont store or parse additional fields (strings) for it
 		s := a.Service
-		if (s.IsEmpty() && s.Start_date.Year == 0 && s.End_date.Year == 0) || s.GetFirstActiveDate().Day < 0 {
+		if (s.IsEmpty() && s.Start_date().IsEmpty() && s.End_date().IsEmpty()) || s.GetFirstActiveDate().IsEmpty() {
 			toDel = true
 		}
 	}
@@ -1333,7 +1331,7 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 
 	// check if any defined PolygonFilter contains the shape point
 	contains := true
-	for _, poly := range feed.opts.PolygonFilter {
+	for _, poly := range feed.opts.PolygonFilter[:] {
 		contains = false
 		if poly.PolyContains(float64(lon), float64(lat)) {
 			contains = true
@@ -1402,7 +1400,7 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 
 	// check if any defined PolygonFilter contains the shape point
 	contains := true
-	for _, poly := range feed.opts.PolygonFilter {
+	for _, poly := range feed.opts.PolygonFilter[:] {
 		contains = false
 		if poly.PolyContains(float64(lon), float64(lat)) {
 			contains = true
@@ -1417,7 +1415,7 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 	p := gtfs.ShapePoint{
 		Lat:           lat,
 		Lon:           lon,
-		Sequence:      getPositiveInt(flds.shapePtSequence, r, flds, true),
+		Sequence:      uint32(getRangeInt(flds.shapePtSequence, r, flds, true, 0, int(^uint32(0)))),
 		Dist_traveled: dist,
 	}
 
@@ -1552,7 +1550,7 @@ func createTransfer(r []string, flds TransferFields, feed *Feed, prefix string) 
 		panic(&StopNotFoundErr{prefix, getString(flds.ToStopId, r, flds, true, true, "")})
 	}
 
-	tv.Transfer_type = getRangeInt(flds.TransferType, r, flds, false, 0, 3)
+	tv.Transfer_type = getRangeInt(flds.TransferType, r, flds, false, 0, 5)
 	tv.Min_transfer_time = getPositiveIntWithDefault(flds.MinTransferTime, r, flds, -1, feed.opts.UseDefValueOnError, feed)
 
 	return tk, tv, nil
@@ -2051,11 +2049,11 @@ func getDate(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed
 			locErr := fmt.Errorf("Expected required field '%s'", flds.FldName(id))
 			if ignErrs {
 				feed.warn(locErr)
-				return gtfs.Date{Day: 0, Month: 0, Year: 0}
+				return gtfs.Date{}
 			}
 			panic(locErr)
 		} else {
-			return gtfs.Date{Day: 0, Month: 0, Year: 0}
+			return gtfs.Date{}
 		}
 	}
 
@@ -2076,6 +2074,18 @@ func getDate(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed
 		year, e = strconv.Atoi(str[0:4])
 	}
 
+	if e == nil && day < 1 || day > 31 {
+		e = fmt.Errorf("day must be in the range [1, 31]")
+	}
+
+	if e == nil && month < 1 || month > 12 {
+		e = fmt.Errorf("month must be in the range [1, 12]")
+	}
+
+	if e == nil && year < 1900 || year > (1900+255) {
+		e = fmt.Errorf("date must be in the range [19000101, 21551231]")
+	}
+
 	if e != nil {
 		locErr := fmt.Errorf("Expected YYYYMMDD date for field '%s', found '%s' (%s)", flds.FldName(id), errFldPrep(str), e.Error())
 		if !ignErrs {
@@ -2083,11 +2093,11 @@ func getDate(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed
 		}
 		feed.warn(locErr)
 	}
-	return gtfs.Date{Day: int8(day), Month: int8(month), Year: int16(year)}
+	return gtfs.NewDate(uint8(day), uint8(month), uint16(year))
 }
 
-func checkShapePointOrdering(seq int, sts gtfs.ShapePoints) bool {
-	for _, st := range sts {
+func checkShapePointOrdering(seq uint32, sts gtfs.ShapePoints) bool {
+	for _, st := range sts[:] {
 		if seq == st.Sequence {
 			return false
 		}
@@ -2097,8 +2107,8 @@ func checkShapePointOrdering(seq int, sts gtfs.ShapePoints) bool {
 }
 
 func checkStopTimesOrdering(seq int, sts gtfs.StopTimes) bool {
-	for _, st := range sts {
-		if seq == st.Sequence {
+	for _, st := range sts[:] {
+		if seq == st.Sequence() {
 			return false
 		}
 	}
