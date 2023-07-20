@@ -1412,6 +1412,11 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 	}
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		tk, tv, e := createTransfer(record, flds, feed, prefix)
+		if e == nil {
+			if _, ok := feed.Transfers[tk]; ok {
+				e = errors.New("ID collision, transfer '" + tk.From_stop.Id + "' -> '" + tk.To_stop.Id + "' already defined.")
+			}
+		}
 		if e != nil {
 			stopNotFoundErr, stopNotFound := e.(*StopNotFoundErr)
 			wasFiltered := false
@@ -1429,10 +1434,10 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 				panic(e)
 			}
 		}
-		if !feed.opts.DryRun {
-			// TODO: check for duplicates, handle them!
-			feed.Transfers[tk] = tv
 
+		feed.Transfers[tk] = tv
+
+		if !feed.opts.DryRun {
 			// add additional CSV fields
 			for _, i := range addFlds {
 				if i < len(record) {
