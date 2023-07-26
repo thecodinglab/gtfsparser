@@ -14,12 +14,12 @@ type Trip struct {
 	Headsign              *string
 	Shape                 *Shape
 	Id                    string
-	Short_name            string
-	Block_id              string
+	Short_name            *string
+	Block_id              *string
 	StopTimes             StopTimes
-	Frequencies           []*Frequency
-	Attributions          []*Attribution
-	Translations          []*Translation
+	Frequencies           *[]*Frequency
+	Attributions          *[]*Attribution
+	Translations          *[]*Translation
 	Direction_id          int8
 	Wheelchair_accessible int8
 	Bikes_allowed         int8

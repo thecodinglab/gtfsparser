@@ -29,7 +29,7 @@ type Fields interface {
 func addiFields(header []string, flds Fields) []int {
 	a := make([]int, 0)
 
-	for i := range header[:] {
+	for i := range header {
 		if len(flds.FldName(i)) == 0 {
 			a = append(a, i)
 		}
@@ -700,7 +700,11 @@ func createTranslation(r []string, flds TranslationFields, feed *Feed, prefix st
 			}
 		} else if tableName == "trips" {
 			if trip, ok := feed.Trips[prefix+id]; ok {
-				trip.Translations = append(trip.Translations, tr)
+				if trip.Translations == nil {
+					trans := make([]*gtfs.Translation, 0)
+					trip.Translations = &trans
+				}
+				*trip.Translations = append(*trip.Translations, tr)
 			} else {
 				panic(&TripNotFoundErr{prefix, id})
 			}
@@ -850,7 +854,11 @@ func createFrequency(r []string, flds FrequencyFields, feed *Feed, prefix string
 	a.Headway_secs = getPositiveInt(flds.headwaySecs, r, flds, true)
 
 	if !feed.opts.DryRun {
-		trip.Frequencies = append(trip.Frequencies, a)
+		if trip.Frequencies == nil {
+			freqs := make([]*gtfs.Frequency, 0)
+			trip.Frequencies = &freqs
+		}
+		*trip.Frequencies = append(*trip.Frequencies, a)
 	}
 
 	return trip, a, nil
@@ -1283,11 +1291,14 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 		a.Headsign = feed.lastString
 	}
 
-	a.Short_name = getString(flds.tripShortName, r, flds, false, false, "")
+	shortName := getString(flds.tripShortName, r, flds, false, false, "")
+	if len(shortName) > 0 {
+		a.Short_name = &shortName
+	}
 	a.Direction_id = int8(getRangeIntWithDefault(flds.directionId, r, flds, 0, 1, -1, feed.opts.UseDefValueOnError, feed))
-	a.Block_id = prefix + getString(flds.blockId, r, flds, false, false, "")
-	if len(a.Block_id) == len(prefix) {
-		a.Block_id = ""
+	blockid := prefix + getString(flds.blockId, r, flds, false, false, "")
+	if len(blockid) != len(prefix) {
+		a.Block_id = &blockid
 	}
 
 	if !feed.opts.DropShapes {
@@ -1331,7 +1342,7 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 
 	// check if any defined PolygonFilter contains the shape point
 	contains := true
-	for _, poly := range feed.opts.PolygonFilter[:] {
+	for _, poly := range feed.opts.PolygonFilter {
 		contains = false
 		if poly.PolyContains(float64(lon), float64(lat)) {
 			contains = true
@@ -1400,7 +1411,7 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 
 	// check if any defined PolygonFilter contains the shape point
 	contains := true
-	for _, poly := range feed.opts.PolygonFilter[:] {
+	for _, poly := range feed.opts.PolygonFilter {
 		contains = false
 		if poly.PolyContains(float64(lon), float64(lat)) {
 			contains = true
@@ -1705,14 +1716,10 @@ func getURL(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed)
 }
 
 func getMail(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed) *mail.Address {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		u, e := mail.ParseAddress(val)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		u, e := mail.ParseAddress(r[id])
 		if e != nil {
-			locErr := fmt.Errorf("'%s' is not a valid email address", errFldPrep(val))
+			locErr := fmt.Errorf("'%s' is not a valid email address", errFldPrep(r[id]))
 			if req || !ignErrs {
 				panic(locErr)
 			} else {
@@ -1728,12 +1735,8 @@ func getMail(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed
 }
 
 func getTimezone(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed) gtfs.Timezone {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		tz, e := gtfs.NewTimezone(val)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		tz, e := gtfs.NewTimezone(r[id])
 		if e != nil && (req || !ignErrs) {
 			panic(e)
 		} else if e != nil {
@@ -1748,12 +1751,8 @@ func getTimezone(id int, r []string, flds Fields, req bool, ignErrs bool, feed *
 }
 
 func getIsoLangCode(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed) gtfs.LanguageISO6391 {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		l, e := gtfs.NewLanguageISO6391(val)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		l, e := gtfs.NewLanguageISO6391(r[id])
 		if e != nil && (req || !ignErrs) {
 			panic(e)
 		} else if e != nil {
@@ -1769,13 +1768,9 @@ func getIsoLangCode(id int, r []string, flds Fields, req bool, ignErrs bool, fee
 }
 
 func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs bool, feed *Feed) string {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		if len(val) != 6 {
-			locErr := fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", flds.FldName(id), errFldPrep(val))
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		if len(r[id]) != 6 {
+			locErr := fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1783,15 +1778,15 @@ func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs boo
 			panic(locErr)
 		}
 
-		if _, e := hex.DecodeString(val); e != nil {
-			locErr := fmt.Errorf("Expected hexadecimal number as color for field '%s' (found: %s)", flds.FldName(id), val)
+		if _, e := hex.DecodeString(r[id]); e != nil {
+			locErr := fmt.Errorf("Expected hexadecimal number as color for field '%s' (found: %s)", flds.FldName(id), r[id])
 			if ignErrs {
 				feed.warn(locErr)
 				return def
 			}
 			panic(locErr)
 		}
-		return strings.ToUpper(val)
+		return strings.ToUpper(r[id])
 	} else if req {
 		locErr := fmt.Errorf("Expected required field '%s'", flds.FldName(id))
 		if ignErrs {
@@ -1804,14 +1799,10 @@ func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs boo
 }
 
 func getIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, feed *Feed) int {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		num, err := strconv.Atoi(r[id])
 		if err != nil {
-			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
+			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1824,14 +1815,10 @@ func getIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, f
 }
 
 func getPositiveInt(id int, r []string, flds Fields, req bool) int {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		num, err := strconv.Atoi(r[id])
 		if err != nil || num < 0 {
-			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val)))
+			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
 		}
 		return num
 	} else if req {
@@ -1841,14 +1828,10 @@ func getPositiveInt(id int, r []string, flds Fields, req bool) int {
 }
 
 func getPositiveIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, feed *Feed) int {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		num, err := strconv.Atoi(r[id])
 		if err != nil || num < 0 {
-			locErr := fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
+			locErr := fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1861,18 +1844,14 @@ func getPositiveIntWithDefault(id int, r []string, flds Fields, def int, ignErrs
 }
 
 func getRangeInt(id int, r []string, flds Fields, req bool, min int, max int) int {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		num, err := strconv.Atoi(r[id])
 		if err != nil {
-			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val)))
+			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
 		}
 
 		if num > max || num < min {
-			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, flds.FldName(id), errFldPrep(val)))
+			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, flds.FldName(id), errFldPrep(r[id])))
 		}
 
 		return num
@@ -1883,14 +1862,10 @@ func getRangeInt(id int, r []string, flds Fields, req bool, min int, max int) in
 }
 
 func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, def int, ignErrs bool, feed *Feed) int {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		num, err := strconv.Atoi(val)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		num, err := strconv.Atoi(r[id])
 		if err != nil {
-			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
+			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1899,7 +1874,7 @@ func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, d
 		}
 
 		if num > max || num < min {
-			locErr := fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, flds.FldName(id), errFldPrep(val))
+			locErr := fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1913,18 +1888,14 @@ func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, d
 }
 
 func getFloat(id int, r []string, flds Fields, req bool) float32 {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		num, err := strconv.ParseFloat(val, 32)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		num, err := strconv.ParseFloat(r[id], 32)
 		if err != nil {
 			// try with comma as decimal separator
-			num, err = strconv.ParseFloat(strings.Replace(val, ",", ".", 1), 32)
+			num, err = strconv.ParseFloat(strings.Replace(r[id], ",", ".", 1), 32)
 		}
 		if err != nil {
-			panic(fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(val)))
+			panic(fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
 		}
 		return float32(num)
 	} else if req {
@@ -1938,21 +1909,16 @@ func getTime(id int, r []string, flds Fields) gtfs.Time {
 		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
 	}
 
-	str := ""
-	if id < len(r) {
-		str = r[id]
-	}
-
-	if len(str) == 0 {
+	if id >= len(r) || len(r[id]) == 0 {
 		return gtfs.Time{Second: int8(-1), Minute: int8(-1), Hour: int8(-1)}
 	}
 
 	var hour, minute, second int
-	parts := strings.Split(str, ":")
+	parts := strings.Split(r[id], ":")
 	var e error
 
 	if len(parts) != 3 || len(parts[0]) == 0 || len(parts[1]) != 2 || len(parts[2]) != 2 {
-		e = fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", flds.FldName(id), errFldPrep(str), e.Error())
+		e = fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", flds.FldName(id), errFldPrep(r[id]), e.Error())
 	}
 
 	if e == nil {
@@ -1966,25 +1932,21 @@ func getTime(id int, r []string, flds Fields) gtfs.Time {
 	}
 
 	if hour > 127 {
-		panic(fmt.Errorf("Max representable time is '127:59:59', found '%s' for field %s", errFldPrep(str), flds.FldName(id)))
+		panic(fmt.Errorf("Max representable time is '127:59:59', found '%s' for field %s", errFldPrep(r[id]), flds.FldName(id)))
 	}
 
 	if e != nil {
-		panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", flds.FldName(id), errFldPrep(str), e.Error()))
+		panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", flds.FldName(id), errFldPrep(r[id]), e.Error()))
 	} else {
 		return gtfs.Time{Hour: int8(hour), Minute: int8(minute), Second: int8(second)}
 	}
 }
 
 func getNullablePositiveFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed) float32 {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		num, err := strconv.ParseFloat(val, 32)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		num, err := strconv.ParseFloat(r[id], 32)
 		if err != nil || num < 0 {
-			locErr := fmt.Errorf("Expected positive float for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
+			locErr := fmt.Errorf("Expected positive float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return float32(math.NaN())
@@ -1997,14 +1959,10 @@ func getNullablePositiveFloat(id int, r []string, flds Fields, ignErrs bool, fee
 }
 
 func getNullableFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed) float32 {
-	val := ""
-	if id >= 0 && id < len(r) {
-		val = r[id]
-	}
-	if len(val) > 0 {
-		num, err := strconv.ParseFloat(val, 32)
+	if id >= 0 && id < len(r) && len(r[id]) > 0 {
+		num, err := strconv.ParseFloat(r[id], 32)
 		if err != nil {
-			locErr := fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
+			locErr := fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return float32(math.NaN())
@@ -2097,7 +2055,7 @@ func getDate(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed
 }
 
 func checkShapePointOrdering(seq uint32, sts gtfs.ShapePoints) bool {
-	for _, st := range sts[:] {
+	for _, st := range sts {
 		if seq == st.Sequence {
 			return false
 		}
@@ -2107,7 +2065,7 @@ func checkShapePointOrdering(seq uint32, sts gtfs.ShapePoints) bool {
 }
 
 func checkStopTimesOrdering(seq int, sts gtfs.StopTimes) bool {
-	for _, st := range sts[:] {
+	for _, st := range sts {
 		if seq == st.Sequence() {
 			return false
 		}
