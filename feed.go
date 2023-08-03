@@ -7,9 +7,10 @@
 package gtfsparser
 
 import (
-	"archive/zip"
+	// "archive/zip"
 	"errors"
 	"fmt"
+	"github.com/klauspost/compress/zip"
 	"github.com/patrickbr/gtfsparser/gtfs"
 	"io"
 	"math"
