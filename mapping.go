@@ -193,6 +193,10 @@ func (flds FeedInfoFields) FldName(idx int) (name string) {
 type TransferFields struct {
 	FromStopId      int
 	ToStopId        int
+	FromRouteId     int
+	ToRouteId       int
+	FromTripId      int
+	ToTripId        int
 	TransferType    int
 	MinTransferTime int
 }
@@ -203,6 +207,14 @@ func (flds TransferFields) FldName(idx int) (name string) {
 		return "from_stop_id"
 	case flds.ToStopId:
 		return "to_stop_id"
+	case flds.FromRouteId:
+		return "from_route_id"
+	case flds.ToRouteId:
+		return "to_route_id"
+	case flds.FromTripId:
+		return "from_trip_id"
+	case flds.ToTripId:
+		return "to_trip_id"
 	case flds.TransferType:
 		return "transfer_type"
 	case flds.MinTransferTime:
@@ -1549,16 +1561,69 @@ func createTransfer(r []string, flds TransferFields, feed *Feed, prefix string) 
 		}
 	}()
 
-	if val, ok := feed.Stops[prefix+getString(flds.FromStopId, r, flds, true, true, "")]; ok {
-		tk.From_stop = val
-	} else {
-		panic(&StopNotFoundErr{prefix, getString(flds.FromStopId, r, flds, true, true, "")})
+	from_sid := getString(flds.FromStopId, r, flds, false, false, "")
+	to_sid := getString(flds.ToStopId, r, flds, false, false, "")
+
+	from_rid := getString(flds.FromRouteId, r, flds, false, false, "")
+	to_rid := getString(flds.ToRouteId, r, flds, false, false, "")
+
+	from_tid := getString(flds.FromTripId, r, flds, false, false, "")
+	to_tid := getString(flds.ToTripId, r, flds, false, false, "")
+
+	if len(from_sid) > 0 {
+		if val, ok := feed.Stops[prefix+from_sid]; ok {
+			tk.From_stop = val
+		} else {
+			panic(&StopNotFoundErr{prefix, from_sid})
+		}
 	}
 
-	if val, ok := feed.Stops[prefix+getString(flds.ToStopId, r, flds, true, true, "")]; ok {
-		tk.To_stop = val
-	} else {
-		panic(&StopNotFoundErr{prefix, getString(flds.ToStopId, r, flds, true, true, "")})
+	if len(to_sid) > 0 {
+		if val, ok := feed.Stops[prefix+to_sid]; ok {
+			tk.To_stop = val
+		} else {
+			panic(&StopNotFoundErr{prefix, to_sid})
+		}
+	}
+
+	if len(from_rid) > 0 {
+		if val, ok := feed.Routes[prefix+from_rid]; ok {
+			tk.From_route = val
+		} else {
+			panic(&RouteNotFoundErr{prefix, from_rid, ""})
+		}
+	}
+
+	if len(to_rid) > 0 {
+		if val, ok := feed.Routes[prefix+to_rid]; ok {
+			tk.To_route = val
+		} else {
+			panic(&RouteNotFoundErr{prefix, to_rid, ""})
+		}
+	}
+
+	if len(from_tid) > 0 {
+		if val, ok := feed.Trips[prefix+from_tid]; ok {
+			tk.From_trip = val
+		} else {
+			panic(&TripNotFoundErr{prefix, from_tid})
+		}
+	}
+
+	if len(to_tid) > 0 {
+		if val, ok := feed.Trips[prefix+to_tid]; ok {
+			tk.To_trip = val
+		} else {
+			panic(&TripNotFoundErr{prefix, to_tid})
+		}
+	}
+
+	if tk.From_stop == nil && tk.From_route == nil && tk.From_trip == nil {
+		panic(fmt.Errorf("either from_stop_id, from_route_id, or from_trip_id must be set"))
+	}
+
+	if tk.To_stop == nil && tk.To_route == nil && tk.To_trip == nil {
+		panic(fmt.Errorf("either to_stop_id, to_route_id, or to_trip_id must be set"))
 	}
 
 	tv.Transfer_type = getRangeInt(flds.TransferType, r, flds, false, 0, 5)

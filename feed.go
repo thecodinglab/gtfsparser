@@ -1431,6 +1431,10 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 	flds := TransferFields{
 		FromStopId:      reader.headeridx.GetFldId("from_stop_id"),
 		ToStopId:        reader.headeridx.GetFldId("to_stop_id"),
+		FromRouteId:     reader.headeridx.GetFldId("from_route_id"),
+		ToRouteId:       reader.headeridx.GetFldId("to_route_id"),
+		FromTripId:      reader.headeridx.GetFldId("from_trip_id"),
+		ToTripId:        reader.headeridx.GetFldId("to_trip_id"),
 		TransferType:    reader.headeridx.GetFldId("transfer_type"),
 		MinTransferTime: reader.headeridx.GetFldId("min_transfer_time"),
 	}
@@ -1444,7 +1448,7 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 		tk, tv, e := createTransfer(record, flds, feed, prefix)
 		if e == nil {
 			if _, ok := feed.Transfers[tk]; ok {
-				e = errors.New("ID collision, transfer '" + tk.From_stop.Id + "' -> '" + tk.To_stop.Id + "' already defined.")
+				e = errors.New("ID collision, transfer already defined.")
 			}
 		}
 		if e != nil {
@@ -2110,6 +2114,58 @@ func (feed *Feed) DeleteStop(id string) {
 	// delete additional fields from CSV
 	for k := range feed.StopsAddFlds {
 		delete(feed.StopsAddFlds[k], id)
+	}
+}
+
+func (feed *Feed) DeleteTransfer(tk gtfs.TransferKey) {
+	delete(feed.Transfers, tk)
+
+	// delete additional fields from CSV
+	for k := range feed.TransfersAddFlds {
+		delete(feed.TransfersAddFlds[k], tk)
+	}
+}
+
+func (feed *Feed) CleanTransfers() {
+	for tk := range feed.Transfers {
+		if tk.From_stop != nil {
+			if _, in := feed.Stops[tk.From_stop.Id]; !in {
+				feed.DeleteTransfer(tk)
+				continue
+			}
+		}
+		if tk.To_stop != nil {
+			if _, in := feed.Stops[tk.To_stop.Id]; !in {
+				feed.DeleteTransfer(tk)
+				continue
+			}
+		}
+		if tk.From_route != nil {
+			if _, in := feed.Routes[tk.From_route.Id]; !in {
+				feed.DeleteTransfer(tk)
+				continue
+			}
+		}
+		if tk.To_route != nil {
+			if _, in := feed.Routes[tk.To_route.Id]; !in {
+				feed.DeleteTransfer(tk)
+				continue
+			}
+		}
+
+		if tk.From_trip != nil {
+			if _, in := feed.Trips[tk.From_trip.Id]; !in {
+				feed.DeleteTransfer(tk)
+				continue
+			}
+		}
+
+		if tk.To_trip != nil {
+			if _, in := feed.Trips[tk.To_trip.Id]; !in {
+				feed.DeleteTransfer(tk)
+				continue
+			}
+		}
 	}
 }
 
