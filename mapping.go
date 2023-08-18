@@ -763,10 +763,6 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 	agencyId := getString(flds.agencyId, r, flds, false, false, "")
 	tripId := getString(flds.tripId, r, flds, false, false, "")
 
-	if !a.Is_producer && !a.Is_operator && !a.Is_authority {
-		return nil, nil, nil, nil, errors.New("One of is_producer, is_operator or is_authority must be set!")
-	}
-
 	if (len(routeId) != 0 && len(agencyId) != 0) || (len(routeId) != 0 && len(tripId) != 0) || (len(tripId) != 0 && len(agencyId) != 0) {
 		return nil, nil, nil, nil, errors.New("Only one of route_id, agency_id or trip_id can be set!")
 	}
