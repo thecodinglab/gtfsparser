@@ -678,7 +678,7 @@ func (feed *Feed) parseRoutes(path string, prefix string, filtered map[string]st
 		}
 
 		if feed.opts.DryRun {
-			feed.Routes[route.Id] = nil
+			feed.Routes[route.Id] = route
 		} else {
 			feed.Routes[route.Id] = route
 
@@ -1205,10 +1205,6 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 			e = feed.checkStopTimeMeasure(trip, &feed.opts)
 			if e != nil {
 				break
-			}
-
-			if feed.opts.DryRun {
-				feed.Trips[trip.Id] = nil
 			}
 		}
 	}

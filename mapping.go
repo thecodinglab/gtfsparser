@@ -763,6 +763,7 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 	agencyId := getString(flds.agencyId, r, flds, false, false, "")
 	tripId := getString(flds.tripId, r, flds, false, false, "")
 
+
 	if (len(routeId) != 0 && len(agencyId) != 0) || (len(routeId) != 0 && len(tripId) != 0) || (len(tripId) != 0 && len(agencyId) != 0) {
 		return nil, nil, nil, nil, errors.New("Only one of route_id, agency_id or trip_id can be set!")
 	}
