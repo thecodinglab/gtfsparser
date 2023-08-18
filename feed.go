@@ -1672,7 +1672,7 @@ func (feed *Feed) parseAttributions(path string, prefix string, filteredRoutes m
 			if _, ok := ids[attr.Id]; ok {
 				e = errors.New("ID collision, attribution_id '" + attr.Id + "' already used.")
 			}
-			if len(attr.Id) > 0 {
+			if len(attr.Id) > len(prefix) {
 				ids[attr.Id] = true
 			}
 		}
