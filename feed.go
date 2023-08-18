@@ -1668,11 +1668,14 @@ func (feed *Feed) parseAttributions(path string, prefix string, filteredRoutes m
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		attr, ag, route, trip, e := createAttribution(record, flds, feed, prefix)
+		if len(attr.Id) == len(prefix) {
+			attr.Id = ""
+		}
 		if e == nil {
 			if _, ok := ids[attr.Id]; ok {
 				e = errors.New("ID collision, attribution_id '" + attr.Id + "' already used.")
 			}
-			if len(attr.Id) > len(prefix) {
+			if len(attr.Id) > 0 {
 				ids[attr.Id] = true
 			}
 		}
