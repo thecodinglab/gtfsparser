@@ -141,8 +141,12 @@ type Feed struct {
 
 	ErrorStats   ErrStats
 	NumShpPoints int
+	NumStopTimes int
 
 	ColOrders ColOrders
+
+	lastTrip  *gtfs.Trip
+	lastShape *gtfs.Shape
 
 	zipFileCloser *zip.ReadCloser
 	curFileHandle *os.File
@@ -183,6 +187,7 @@ func NewFeed() *Feed {
 		AttributionsAddFlds:   make(map[string]map[*gtfs.Attribution]string),
 		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		NumShpPoints:          0,
+		NumStopTimes:          0,
 		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{}, gtfs.Date{}, make([]Polygon, 0), false, make(map[int16]bool, 0)},
 	}
 	g.lastString = &g.emptyString
@@ -995,7 +1000,7 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 	i := 0
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
-		if i%1000000 == 0 {
+		if i%10000000 == 0 {
 			runtime.GC()
 		}
 		i += 1
@@ -1153,7 +1158,7 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 	i := 0
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
-		if i%1000000 == 0 {
+		if i%10000000 == 0 {
 			runtime.GC()
 		}
 		i += 1
@@ -1204,6 +1209,7 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 		for _, trip := range feed.Trips {
 			sort.Sort(trip.StopTimes)
 			e = feed.checkStopTimeMeasure(trip, &feed.opts)
+			feed.NumStopTimes += len(trip.StopTimes)
 			if e != nil {
 				break
 			}
@@ -1859,6 +1865,20 @@ func (feed *Feed) checkShapeMeasure(shape *gtfs.Shape, opt *ParseOptions) error 
 	deleted := 0
 	for j := 1; j < len(shape.Points)+deleted; j++ {
 		i := j - deleted
+
+		if shape.Points[i-1].Sequence == shape.Points[i].Sequence {
+			e := fmt.Errorf("In shape '%s' for point with seq=%d: stop time sequence collision. Sequence has to increase along shape.", shape.Id, shape.Points[i].Sequence)
+			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedStopTimes++
+				shape.Points = shape.Points[:i+copy(shape.Points[i:], shape.Points[i+1:])]
+				feed.warn(e)
+				deleted++
+				continue
+			} else {
+				return e
+			}
+		}
+
 		if shape.Points[i-1].HasDistanceTraveled() && shape.Points[i-1].Dist_traveled > max {
 			max = shape.Points[i-1].Dist_traveled
 		}
@@ -1886,6 +1906,19 @@ func (feed *Feed) checkStopTimeMeasure(trip *gtfs.Trip, opt *ParseOptions) error
 	deleted := 0
 	for j := 1; j < len(trip.StopTimes)+deleted; j++ {
 		i := j - deleted
+
+		if trip.StopTimes[i-1].Sequence() == trip.StopTimes[i].Sequence() {
+			e := fmt.Errorf("In trip '%s' for stoptime with seq=%d: stop time sequence collision. Sequence has to increase along trip.", trip.Id, trip.StopTimes[i].Sequence())
+			if feed.opts.DropErroneous {
+				feed.ErrorStats.DroppedStopTimes++
+				trip.StopTimes = trip.StopTimes[:i+copy(trip.StopTimes[i:], trip.StopTimes[i+1:])]
+				feed.warn(e)
+				deleted++
+				continue
+			} else {
+				return e
+			}
+		}
 
 		if !trip.StopTimes[i-1].Departure_time().Empty() && !trip.StopTimes[i].Arrival_time().Empty() && trip.StopTimes[i-1].Departure_time().SecondsSinceMidnight() > trip.StopTimes[i].Arrival_time().SecondsSinceMidnight() {
 			e := fmt.Errorf("In trip '%s' for stoptime with seq=%d the arrival time is before the departure in the previous station", trip.Id, trip.StopTimes[i].Sequence())

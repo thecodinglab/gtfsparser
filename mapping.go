@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/patrickbr/gtfsparser/gtfs"
+	"github.com/valyala/fastjson/fastfloat"
 	"math"
 	mail "net/mail"
 	url "net/url"
@@ -1148,10 +1149,11 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 
 	tripId := prefix + getString(flds.tripId, r, flds, true, true, "")
 
-	if val, ok := feed.Trips[tripId]; ok {
-		trip = val
+	if feed.lastTrip != nil && feed.lastTrip.Id == tripId {
+		trip = feed.lastTrip
 	} else {
-		panic(&TripNotFoundErr{prefix, getString(flds.tripId, r, flds, true, true, "")})
+		trip = feed.Trips[tripId]
+		feed.lastTrip = trip
 	}
 
 	toDel := false
@@ -1238,18 +1240,7 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		feed.warn(locErr)
 	}
 
-	if !toDel {
-		if checkStopTimesOrdering(a.Sequence(), trip.StopTimes) {
-			trip.StopTimes = append(trip.StopTimes, a)
-		} else {
-			locErr := errors.New("Stop time sequence collision. Sequence has to increase along trip")
-			if !feed.opts.DropErroneous {
-				panic(locErr)
-			} else {
-				feed.warn(locErr)
-			}
-		}
-	}
+	trip.StopTimes = append(trip.StopTimes, a)
 
 	return trip, &a, nil
 }
@@ -1390,13 +1381,16 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 	shapeID := prefix + getString(flds.shapeId, r, flds, true, true, "")
 	var shape *gtfs.Shape
 
-	if val, ok := feed.Shapes[shapeID]; ok {
-		shape = val
+	if feed.lastShape != nil && feed.lastShape.Id == shapeID {
+		shape = feed.lastShape
+	} else {
+		shape = feed.Shapes[shapeID]
+		feed.lastShape = shape
+	}
 
-		if shape.Id != shapeID {
-			shape.Id = shapeID
-			shape.Points = make(gtfs.ShapePoints, 0, shape.Points[0].Sequence)
-		}
+	if shape.Id != shapeID {
+		shape.Id = shapeID
+		shape.Points = make(gtfs.ShapePoints, 0, shape.Points[0].Sequence)
 	}
 
 	dist := getNullableFloat(flds.shapeDistTraveled, r, flds, feed.opts.UseDefValueOnError, feed)
@@ -1439,16 +1433,7 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 		Dist_traveled: dist,
 	}
 
-	if checkShapePointOrdering(p.Sequence, shape.Points) {
-		shape.Points = append(shape.Points, p)
-	} else {
-		locErr := errors.New("Shape point sequence collision. Sequence has to increase along shape")
-		if !feed.opts.DropErroneous {
-			panic(locErr)
-		} else {
-			feed.warn(locErr)
-		}
-	}
+	shape.Points = append(shape.Points, p)
 
 	return shape, &p, nil
 }
@@ -1862,7 +1847,7 @@ func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs boo
 
 func getIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, feed *Feed) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
-		num, err := strconv.Atoi(r[id])
+		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil {
 			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
@@ -1871,18 +1856,18 @@ func getIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, f
 			}
 			panic(locErr)
 		}
-		return num
+		return int(num)
 	}
 	return def
 }
 
 func getPositiveInt(id int, r []string, flds Fields, req bool) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
-		num, err := strconv.Atoi(r[id])
+		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil || num < 0 {
 			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
 		}
-		return num
+		return int(num)
 	} else if req {
 		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
 	}
@@ -1891,7 +1876,7 @@ func getPositiveInt(id int, r []string, flds Fields, req bool) int {
 
 func getPositiveIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, feed *Feed) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
-		num, err := strconv.Atoi(r[id])
+		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil || num < 0 {
 			locErr := fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
@@ -1900,23 +1885,23 @@ func getPositiveIntWithDefault(id int, r []string, flds Fields, def int, ignErrs
 			}
 			panic(locErr)
 		}
-		return num
+		return int(num)
 	}
 	return def
 }
 
 func getRangeInt(id int, r []string, flds Fields, req bool, min int, max int) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
-		num, err := strconv.Atoi(r[id])
+		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil {
 			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
 		}
 
-		if num > max || num < min {
+		if int(num) > max || int(num) < min {
 			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, flds.FldName(id), errFldPrep(r[id])))
 		}
 
-		return num
+		return int(num)
 	} else if req {
 		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
 	}
@@ -1925,7 +1910,7 @@ func getRangeInt(id int, r []string, flds Fields, req bool, min int, max int) in
 
 func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, def int, ignErrs bool, feed *Feed) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
-		num, err := strconv.Atoi(r[id])
+		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil {
 			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
@@ -1935,7 +1920,7 @@ func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, d
 			panic(locErr)
 		}
 
-		if num > max || num < min {
+		if int(num) > max || int(num) < min {
 			locErr := fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
@@ -1944,17 +1929,17 @@ func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, d
 			panic(locErr)
 		}
 
-		return num
+		return int(num)
 	}
 	return def
 }
 
 func getFloat(id int, r []string, flds Fields, req bool) float32 {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
-		num, err := strconv.ParseFloat(r[id], 32)
+		num, err := fastfloat.Parse(r[id])
 		if err != nil {
 			// try with comma as decimal separator
-			num, err = strconv.ParseFloat(strings.Replace(r[id], ",", ".", 1), 32)
+			num, err = fastfloat.Parse(strings.Replace(r[id], ",", ".", 1))
 		}
 		if err != nil {
 			panic(fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
@@ -1975,7 +1960,7 @@ func getTime(id int, r []string, flds Fields) gtfs.Time {
 		return gtfs.Time{Second: int8(-1), Minute: int8(-1), Hour: int8(-1)}
 	}
 
-	var hour, minute, second int
+	var hour, minute, second int64
 	parts := strings.Split(r[id], ":")
 	var e error
 
@@ -1984,13 +1969,13 @@ func getTime(id int, r []string, flds Fields) gtfs.Time {
 	}
 
 	if e == nil {
-		hour, e = strconv.Atoi(parts[0])
+		hour, e = fastfloat.ParseInt64(parts[0])
 	}
 	if e == nil {
-		minute, e = strconv.Atoi(parts[1])
+		minute, e = fastfloat.ParseInt64(parts[1])
 	}
 	if e == nil {
-		second, e = strconv.Atoi(parts[2])
+		second, e = fastfloat.ParseInt64(parts[2])
 	}
 
 	if hour > 127 {
@@ -2042,7 +2027,7 @@ func getBool(id int, r []string, flds Fields, req bool, def bool, ignErrs bool, 
 		val = r[id]
 	}
 	if len(val) > 0 {
-		num, err := strconv.Atoi(val)
+		num, err := fastfloat.ParseInt64(val)
 		if err != nil || (num != 0 && num != 1) {
 			locErr := fmt.Errorf("Expected 1 or 0 for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
 			if ignErrs {
@@ -2079,19 +2064,19 @@ func getDate(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed
 
 	str := r[id]
 
-	var day, month, year int
+	var day, month, year int64
 	var e error
 	if len(str) < 8 {
 		e = fmt.Errorf("only has %d characters, expected 8", len(str))
 	}
 	if e == nil {
-		day, e = strconv.Atoi(str[6:8])
+		day, e = fastfloat.ParseInt64(str[6:8])
 	}
 	if e == nil {
-		month, e = strconv.Atoi(str[4:6])
+		month, e = fastfloat.ParseInt64(str[4:6])
 	}
 	if e == nil {
-		year, e = strconv.Atoi(str[0:4])
+		year, e = fastfloat.ParseInt64(str[0:4])
 	}
 
 	if e == nil && day < 1 || day > 31 {
@@ -2114,26 +2099,6 @@ func getDate(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed
 		feed.warn(locErr)
 	}
 	return gtfs.NewDate(uint8(day), uint8(month), uint16(year))
-}
-
-func checkShapePointOrdering(seq uint32, sts gtfs.ShapePoints) bool {
-	for _, st := range sts {
-		if seq == st.Sequence {
-			return false
-		}
-	}
-
-	return true
-}
-
-func checkStopTimesOrdering(seq int, sts gtfs.StopTimes) bool {
-	for _, st := range sts {
-		if seq == st.Sequence() {
-			return false
-		}
-	}
-
-	return true
 }
 
 func errFldPrep(val string) string {
