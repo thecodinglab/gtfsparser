@@ -748,6 +748,7 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 		}
 	}()
 
+
 	a := new(gtfs.Attribution)
 
 	a.Id = prefix + getString(flds.attributionId, r, flds, false, false, "")
@@ -776,6 +777,7 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 			panic(fmt.Errorf("No agency with id %s found", agencyId))
 		}
 	}
+
 
 	if len(routeId) > 0 {
 		if val, ok := feed.Routes[prefix+routeId]; ok {
