@@ -7,6 +7,7 @@
 package gtfsparser
 
 import (
+	"bufio"
 	"encoding/csv"
 	"io"
 	"strings"
@@ -24,26 +25,44 @@ func (d HeaderIdx) GetFldId(key string) (result int) {
 
 // CsvParser is a wrapper around csv.Reader
 type CsvParser struct {
-	header     []string
-	headeridx  HeaderIdx
-	ret        map[string]string
-	reader     *csv.Reader
-	Curline    int
-	silentfail bool
+	header      []string
+	headeridx   HeaderIdx
+	ret         map[string]string
+	reader      *csv.Reader
+	Curline     int
+	silentfail  bool
+	assumeclean bool
+	scanner     *bufio.Scanner
+	record      []string
 }
 
 // NewCsvParser creates a new CsvParser
-func NewCsvParser(file io.Reader, silentfail bool) CsvParser {
+func NewCsvParser(file io.Reader, silentfail bool, assumeclean bool) CsvParser {
 	reader := csv.NewReader(file)
 	reader.TrimLeadingSpace = true
 	reader.LazyQuotes = true
 	reader.FieldsPerRecord = -1
 	reader.ReuseRecord = true
 	p := CsvParser{reader: reader}
+	p.assumeclean = assumeclean
+
+	if p.assumeclean {
+		p.scanner = bufio.NewScanner(file)
+		p.record = make([]string, 999)
+	}
+
 	p.parseHeader()
 	p.silentfail = silentfail
 
+	if p.assumeclean {
+		p.record = make([]string, len(p.header))
+	}
+
 	return p
+}
+
+func (c *CsvParser) GetHeader() []string {
+	return c.header
 }
 
 // ParseRecord reads a single line into a map
@@ -66,25 +85,42 @@ func (p *CsvParser) ParseRecord() map[string]string {
 }
 
 func (p *CsvParser) ParseCsvLine() []string {
-	record, err := p.reader.Read()
-
 	// TODO: this does not capture empty CSV lines and comments, as they are skipped
 	// automatically by the CSV reader, and the internal line counter of the CSV reader
 	// is not accessible.
 	p.Curline++
 
+	if p.assumeclean {
+		have := p.scanner.Scan()
+
+		if !have {
+			return nil
+		} else if p.scanner.Err() != nil {
+			if p.silentfail {
+				return nil
+			} else {
+				panic(p.scanner.Err())
+			}
+		}
+
+		return strings.Split(p.scanner.Text(), ",")
+	}
+
+	record, err := p.reader.Read()
+
 	// handle byte order marks
 	if len(record) > 0 {
+		a := len(record[0])
 		// utf 8
-		if len(record[0]) > 2 && record[0][0] == 239 && record[0][1] == 187 && record[0][2] == 191 {
+		if a > 2 && record[0][0] == 239 && record[0][1] == 187 && record[0][2] == 191 {
 			record[0] = record[0][3:]
 
 			// utf 16 BE
-		} else if len(record[0]) > 1 && record[0][0] == 254 && record[0][1] == 255 {
+		} else if a > 1 && record[0][0] == 254 && record[0][1] == 255 {
 			record[0] = record[0][2:]
 
 			// utf 16 LE
-		} else if len(record[0]) > 1 && record[0][0] == 255 && record[0][1] == 254 {
+		} else if a > 1 && record[0][0] == 255 && record[0][1] == 254 {
 			record[0] = record[0][2:]
 		}
 	}

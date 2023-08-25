@@ -16,7 +16,6 @@ import (
 	mail "net/mail"
 	url "net/url"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -748,7 +747,6 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 		}
 	}()
 
-
 	a := new(gtfs.Attribution)
 
 	a.Id = prefix + getString(flds.attributionId, r, flds, false, false, "")
@@ -765,7 +763,6 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 	agencyId := getString(flds.agencyId, r, flds, false, false, "")
 	tripId := getString(flds.tripId, r, flds, false, false, "")
 
-
 	if (len(routeId) != 0 && len(agencyId) != 0) || (len(routeId) != 0 && len(tripId) != 0) || (len(tripId) != 0 && len(agencyId) != 0) {
 		return nil, nil, nil, nil, errors.New("Only one of route_id, agency_id or trip_id can be set!")
 	}
@@ -777,7 +774,6 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 			panic(fmt.Errorf("No agency with id %s found", agencyId))
 		}
 	}
-
 
 	if len(routeId) > 0 {
 		if val, ok := feed.Routes[prefix+routeId]; ok {
@@ -1993,7 +1989,7 @@ func getTime(id int, r []string, flds Fields) gtfs.Time {
 
 func getNullablePositiveFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed) float32 {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
-		num, err := strconv.ParseFloat(r[id], 32)
+		num, err := fastfloat.Parse(r[id])
 		if err != nil || num < 0 {
 			locErr := fmt.Errorf("Expected positive float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
@@ -2009,7 +2005,7 @@ func getNullablePositiveFloat(id int, r []string, flds Fields, ignErrs bool, fee
 
 func getNullableFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed) float32 {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
-		num, err := strconv.ParseFloat(r[id], 32)
+		num, err := fastfloat.Parse(r[id])
 		if err != nil {
 			locErr := fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
