@@ -1154,24 +1154,20 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		feed.lastTrip = trip
 	}
 
-	toDel := false
-
 	if !feed.opts.DateFilterStart.IsEmpty() || !feed.opts.DateFilterEnd.IsEmpty() {
 		// this trip will later be deleted - dont store stop times for it!
 		s := trip.Service
 		if (s.IsEmpty() && s.Start_date().IsEmpty() && s.End_date().IsEmpty()) || s.GetFirstActiveDate().IsEmpty() {
-			toDel = true
+			return trip, &a, nil
 		}
 	}
 
 	if trip.Id != tripId {
 		trip.Id = tripId
-		if !toDel {
-			if trip.StopTimes[0].Sequence() == 0 {
-				trip.StopTimes = trip.StopTimes[:len(trip.StopTimes)-1]
-			} else {
-				trip.StopTimes = make(gtfs.StopTimes, 0, trip.StopTimes[0].Sequence())
-			}
+		if trip.StopTimes[0].Sequence() == 0 {
+			trip.StopTimes = trip.StopTimes[:len(trip.StopTimes)-1]
+		} else {
+			trip.StopTimes = make(gtfs.StopTimes, 0, trip.StopTimes[0].Sequence())
 		}
 	}
 
@@ -1212,7 +1208,7 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	headsign := getString(flds.stopHeadsign, r, flds, false, false, "")
 
 	// only store headsigns that are different to the default trip headsign
-	if !toDel && len(headsign) > 0 && headsign != *trip.Headsign {
+	if len(headsign) > 0 && headsign != *trip.Headsign {
 		if *feed.lastString != headsign {
 			feed.lastString = &headsign
 		}
