@@ -1931,11 +1931,11 @@ func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, d
 func getFloat(id int, r []string, flds Fields, req bool) float32 {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.Parse(r[id])
-		if err != nil {
+		if err != nil || math.IsNaN(num) {
 			// try with comma as decimal separator
 			num, err = fastfloat.Parse(strings.Replace(r[id], ",", ".", 1))
 		}
-		if err != nil {
+		if err != nil || math.IsNaN(num) {
 			panic(fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
 		}
 		return float32(num)
@@ -1986,7 +1986,11 @@ func getTime(id int, r []string, flds Fields) gtfs.Time {
 func getNullablePositiveFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed) float32 {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.Parse(r[id])
-		if err != nil || num < 0 {
+		if err != nil || math.IsNaN(num) {
+			// try with comma as decimal separator
+			num, err = fastfloat.Parse(strings.Replace(r[id], ",", ".", 1))
+		}
+		if err != nil || math.IsNaN(num) || num < 0 {
 			locErr := fmt.Errorf("Expected positive float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
@@ -2002,7 +2006,11 @@ func getNullablePositiveFloat(id int, r []string, flds Fields, ignErrs bool, fee
 func getNullableFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed) float32 {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.Parse(r[id])
-		if err != nil {
+		if err != nil || math.IsNaN(num) {
+			// try with comma as decimal separator
+			num, err = fastfloat.Parse(strings.Replace(r[id], ",", ".", 1))
+		}
+		if err != nil || math.IsNaN(num) {
 			locErr := fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
