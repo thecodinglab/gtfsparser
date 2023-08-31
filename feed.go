@@ -1156,6 +1156,12 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 		addFlds = addiFields(reader.header, flds)
 	}
 
+	file, e = feed.getFile(path, "stop_times.txt")
+
+	if e != nil {
+		return errors.New("Could not open required file stop_times.txt")
+	}
+
 	reader = NewCsvParser(file, feed.opts.DropErroneous, feed.opts.AssumeCleanCsv && flds.stopHeadsign < 0)
 
 	i := 0
