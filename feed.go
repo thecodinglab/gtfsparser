@@ -1104,17 +1104,7 @@ func (feed *Feed) reserveStopTimes(path string, prefix string, filteredTrips map
 	reader = NewCsvParser(file, feed.opts.DropErroneous, feed.opts.AssumeCleanCsv && flds.stopHeadsign < 0 && !feed.opts.KeepAddFlds)
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
-		e := reserveStopTime(record, flds, feed, prefix)
-
-		if e != nil {
-			tripNotFoundErr, tripNotFound := e.(*TripNotFoundErr)
-			if tripNotFound {
-				_, wasFiltered := filteredTrips[tripNotFoundErr.TripId()]
-				if wasFiltered {
-					continue
-				}
-			}
-		}
+		reserveStopTime(record, flds, feed, prefix)
 	}
 
 	return e

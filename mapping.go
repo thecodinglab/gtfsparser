@@ -1154,6 +1154,10 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		feed.lastTrip = trip
 	}
 
+	if trip == nil {
+		panic(&TripNotFoundErr{prefix, getString(flds.tripId, r, flds, true, true, "")})
+	}
+
 	if !feed.opts.DateFilterStart.IsEmpty() || !feed.opts.DateFilterEnd.IsEmpty() {
 		// this trip will later be deleted - dont store stop times for it!
 		s := trip.Service
