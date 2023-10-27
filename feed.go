@@ -42,14 +42,15 @@ type ColOrders struct {
 }
 
 type Polygon struct {
-	OuterRing [][2]float64
-	ll        [2]float64
-	ur        [2]float64
+	OuterRing  [][2]float64
+	InnerRings [][][2]float64
+	ll         [2]float64
+	ur         [2]float64
 }
 
 // NewPolygon creates a new Polygon from an outer ring
-func NewPolygon(outer [][2]float64) Polygon {
-	poly := Polygon{outer, [2]float64{math.MaxFloat64, math.MaxFloat64}, [2]float64{-math.MaxFloat64, -math.MaxFloat64}}
+func NewPolygon(outer [][2]float64, inners [][][2]float64) Polygon {
+	poly := Polygon{outer, inners, [2]float64{math.MaxFloat64, math.MaxFloat64}, [2]float64{-math.MaxFloat64, -math.MaxFloat64}}
 
 	for _, p := range outer {
 		if p[0] < poly.ll[0] {
@@ -63,6 +64,23 @@ func NewPolygon(outer [][2]float64) Polygon {
 		}
 		if p[1] > poly.ur[1] {
 			poly.ur[1] = p[1]
+		}
+	}
+
+	for _, inner := range inners {
+		for _, p := range inner {
+			if p[0] < poly.ll[0] {
+				poly.ll[0] = p[0]
+			}
+			if p[1] < poly.ll[1] {
+				poly.ll[1] = p[1]
+			}
+			if p[0] > poly.ur[0] {
+				poly.ur[0] = p[0]
+			}
+			if p[1] > poly.ur[1] {
+				poly.ur[1] = p[1]
+			}
 		}
 	}
 
@@ -1978,7 +1996,28 @@ func (p *Polygon) PolyContains(x float64, y float64) bool {
 
 	c *= polyContCheck(x, y, p.OuterRing[len(p.OuterRing)-1][0], p.OuterRing[len(p.OuterRing)-1][1], p.OuterRing[0][0], p.OuterRing[0][1])
 
-	return c >= 0
+	if c < 0 {
+		return false
+	}
+
+	for _, innerRing := range p.InnerRings {
+		c = int8(-1)
+
+		for i := 1; i < len(innerRing); i++ {
+			c *= polyContCheck(x, y, innerRing[i-1][0], innerRing[i-1][1], innerRing[i][0], innerRing[i][1])
+			if c == 0 {
+				return false
+			}
+		}
+
+		c *= polyContCheck(x, y, innerRing[len(innerRing)-1][0], innerRing[len(innerRing)-1][1], innerRing[0][0], innerRing[0][1])
+
+		if c >= 0 {
+			return false
+		}
+	}
+
+	return true
 }
 
 func polyContCheck(ax float64, ay float64, bx float64, by float64, cx float64, cy float64) int8 {
