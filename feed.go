@@ -103,6 +103,7 @@ type ParseOptions struct {
 	PolygonFilter         []Polygon
 	UseStandardRouteTypes bool
 	MOTFilter             map[int16]bool
+	MOTFilterNeg          map[int16]bool
 	AssumeCleanCsv        bool
 }
 
@@ -211,7 +212,7 @@ func NewFeed() *Feed {
 		NumShpPoints:          0,
 		NumStopTimes:          0,
 		fastParsePossible:     true,
-		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{}, gtfs.Date{}, make([]Polygon, 0), false, make(map[int16]bool, 0), false},
+		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{}, gtfs.Date{}, make([]Polygon, 0), false, make(map[int16]bool, 0), make(map[int16]bool, 0), false},
 	}
 	g.lastString = &g.emptyString
 
@@ -701,6 +702,13 @@ func (feed *Feed) parseRoutes(path string, prefix string, filtered map[string]st
 
 		if len(feed.opts.MOTFilter) != 0 {
 			if _, ok := feed.opts.MOTFilter[route.Type]; !ok {
+				filtered[route.Id] = struct{}{}
+				continue
+			}
+		}
+
+		if len(feed.opts.MOTFilterNeg) != 0 {
+			if _, ok := feed.opts.MOTFilterNeg[route.Type]; ok {
 				filtered[route.Id] = struct{}{}
 				continue
 			}
