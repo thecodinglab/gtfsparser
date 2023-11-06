@@ -29,8 +29,8 @@ type Fields interface {
 func addiFields(header []string, flds Fields) []int {
 	a := make([]int, 0)
 
-	for i := range header {
-		if len(flds.FldName(i)) == 0 {
+	for i, name := range header {
+		if len(name) != 0 && len(flds.FldName(i)) == 0 {
 			a = append(a, i)
 		}
 	}
