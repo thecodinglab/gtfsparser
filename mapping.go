@@ -934,6 +934,10 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 		}
 	}
 
+	if a.Short_name == a.Long_name {
+		a.Long_name = ""
+	}
+
 	a.Desc = getString(flds.routeDesc, r, flds, false, false, "")
 	a.Type = int16(getRangeInt(flds.routeType, r, flds, true, 0, 1702)) // allow extended route types
 	a.Url = getURL(flds.routeUrl, r, flds, false, feed.opts.UseDefValueOnError, feed)
