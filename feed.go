@@ -428,14 +428,14 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 
 	var record []string
 	flds := AgencyFields{
-		agencyId:       reader.headeridx.GetFldId("agency_id"),
-		agencyName:     reader.headeridx.GetFldId("agency_name"),
-		agencyUrl:      reader.headeridx.GetFldId("agency_url"),
-		agencyTimezone: reader.headeridx.GetFldId("agency_timezone"),
-		agencyLang:     reader.headeridx.GetFldId("agency_lang"),
-		agencyPhone:    reader.headeridx.GetFldId("agency_phone"),
-		agencyFareUrl:  reader.headeridx.GetFldId("agency_fare_url"),
-		agencyEmail:    reader.headeridx.GetFldId("agency_email"),
+		agencyId:       reader.headeridx.GetFldId("agency_id", -1),
+		agencyName:     reader.headeridx.GetFldId("agency_name", -2),
+		agencyUrl:      reader.headeridx.GetFldId("agency_url", -3),
+		agencyTimezone: reader.headeridx.GetFldId("agency_timezone", -4),
+		agencyLang:     reader.headeridx.GetFldId("agency_lang", -5),
+		agencyPhone:    reader.headeridx.GetFldId("agency_phone", -6),
+		agencyFareUrl:  reader.headeridx.GetFldId("agency_fare_url", -7),
+		agencyEmail:    reader.headeridx.GetFldId("agency_email", -8),
 	}
 
 	addFlds := make([]int, 0)
@@ -509,20 +509,20 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 
 	var record []string
 	flds := StopFields{
-		stopId:             reader.headeridx.GetFldId("stop_id"),
-		stopCode:           reader.headeridx.GetFldId("stop_code"),
-		locationType:       reader.headeridx.GetFldId("location_type"),
-		stopName:           reader.headeridx.GetFldId("stop_name"),
-		stopDesc:           reader.headeridx.GetFldId("stop_desc"),
-		stopLat:            reader.headeridx.GetFldId("stop_lat"),
-		stopLon:            reader.headeridx.GetFldId("stop_lon"),
-		zoneId:             reader.headeridx.GetFldId("zone_id"),
-		stopUrl:            reader.headeridx.GetFldId("stop_url"),
-		parentStation:      reader.headeridx.GetFldId("parent_station"),
-		stopTimezone:       reader.headeridx.GetFldId("stop_timezone"),
-		levelId:            reader.headeridx.GetFldId("level_id"),
-		platformCode:       reader.headeridx.GetFldId("platform_code"),
-		wheelchairBoarding: reader.headeridx.GetFldId("wheelchair_boarding"),
+		stopId:             reader.headeridx.GetFldId("stop_id", -1),
+		stopCode:           reader.headeridx.GetFldId("stop_code", -2),
+		locationType:       reader.headeridx.GetFldId("location_type", -3),
+		stopName:           reader.headeridx.GetFldId("stop_name", -4),
+		stopDesc:           reader.headeridx.GetFldId("stop_desc", -5),
+		stopLat:            reader.headeridx.GetFldId("stop_lat", -6),
+		stopLon:            reader.headeridx.GetFldId("stop_lon", -7),
+		zoneId:             reader.headeridx.GetFldId("zone_id", -8),
+		stopUrl:            reader.headeridx.GetFldId("stop_url", -9),
+		parentStation:      reader.headeridx.GetFldId("parent_station", -10),
+		stopTimezone:       reader.headeridx.GetFldId("stop_timezone", -11),
+		levelId:            reader.headeridx.GetFldId("level_id", -12),
+		platformCode:       reader.headeridx.GetFldId("platform_code", -13),
+		wheelchairBoarding: reader.headeridx.GetFldId("wheelchair_boarding", -14),
 	}
 
 	addFlds := make([]int, 0)
@@ -589,10 +589,12 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 		if !ok {
 			locErr := errors.New("(for stop id " + id + ") No station with id " + pid + " found, cannot use as parent station here.")
 			_, wasFiltered := geofiltered[pid]
-			if wasFiltered {
+
+			// note: if type >= 2, a parent Id is *required*
+			if wasFiltered && feed.Stops[id].Location_type < 2 {
 				// continue, the default value "nil" has already be written above
 				continue
-			} else if feed.opts.UseDefValueOnError {
+			} else if feed.opts.UseDefValueOnError && feed.Stops[id].Location_type < 2 {
 				// continue, the default value "nil" has already be written above
 				feed.warn(locErr)
 				continue
@@ -660,18 +662,18 @@ func (feed *Feed) parseRoutes(path string, prefix string, filtered map[string]st
 
 	var record []string
 	flds := RouteFields{
-		routeId:           reader.headeridx.GetFldId("route_id"),
-		agencyId:          reader.headeridx.GetFldId("agency_id"),
-		routeShortName:    reader.headeridx.GetFldId("route_short_name"),
-		routeLongName:     reader.headeridx.GetFldId("route_long_name"),
-		routeDesc:         reader.headeridx.GetFldId("route_desc"),
-		routeType:         reader.headeridx.GetFldId("route_type"),
-		routeUrl:          reader.headeridx.GetFldId("route_url"),
-		routeColor:        reader.headeridx.GetFldId("route_color"),
-		routeTextColor:    reader.headeridx.GetFldId("route_text_color"),
-		routeSortOrder:    reader.headeridx.GetFldId("route_sort_order"),
-		continuousDropOff: reader.headeridx.GetFldId("continuous_drop_off"),
-		continuousPickup:  reader.headeridx.GetFldId("continuous_pickup"),
+		routeId:           reader.headeridx.GetFldId("route_id", -1),
+		agencyId:          reader.headeridx.GetFldId("agency_id", -2),
+		routeShortName:    reader.headeridx.GetFldId("route_short_name", -3),
+		routeLongName:     reader.headeridx.GetFldId("route_long_name", -4),
+		routeDesc:         reader.headeridx.GetFldId("route_desc", -5),
+		routeType:         reader.headeridx.GetFldId("route_type", -6),
+		routeUrl:          reader.headeridx.GetFldId("route_url", -7),
+		routeColor:        reader.headeridx.GetFldId("route_color", -8),
+		routeTextColor:    reader.headeridx.GetFldId("route_text_color", -9),
+		routeSortOrder:    reader.headeridx.GetFldId("route_sort_order", -10),
+		continuousDropOff: reader.headeridx.GetFldId("continuous_drop_off", -11),
+		continuousPickup:  reader.headeridx.GetFldId("continuous_pickup", -12),
 	}
 
 	addFlds := make([]int, 0)
@@ -754,16 +756,16 @@ func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 
 	var record []string
 	flds := CalendarFields{
-		serviceId: reader.headeridx.GetFldId("service_id"),
-		monday:    reader.headeridx.GetFldId("monday"),
-		tuesday:   reader.headeridx.GetFldId("tuesday"),
-		wednesday: reader.headeridx.GetFldId("wednesday"),
-		thursday:  reader.headeridx.GetFldId("thursday"),
-		friday:    reader.headeridx.GetFldId("friday"),
-		saturday:  reader.headeridx.GetFldId("saturday"),
-		sunday:    reader.headeridx.GetFldId("sunday"),
-		startDate: reader.headeridx.GetFldId("start_date"),
-		endDate:   reader.headeridx.GetFldId("end_date"),
+		serviceId: reader.headeridx.GetFldId("service_id", -1),
+		monday:    reader.headeridx.GetFldId("monday", -2),
+		tuesday:   reader.headeridx.GetFldId("tuesday", -3),
+		wednesday: reader.headeridx.GetFldId("wednesday", -4),
+		thursday:  reader.headeridx.GetFldId("thursday", -5),
+		friday:    reader.headeridx.GetFldId("friday", -6),
+		saturday:  reader.headeridx.GetFldId("saturday", -7),
+		sunday:    reader.headeridx.GetFldId("sunday", -8),
+		startDate: reader.headeridx.GetFldId("start_date", -9),
+		endDate:   reader.headeridx.GetFldId("end_date", -10),
 	}
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
@@ -831,9 +833,9 @@ func (feed *Feed) parseCalendarDates(path string, prefix string) (err error) {
 
 	var record []string
 	flds := CalendarDatesFields{
-		serviceId:     reader.headeridx.GetFldId("service_id"),
-		exceptionType: reader.headeridx.GetFldId("exception_type"),
-		date:          reader.headeridx.GetFldId("date"),
+		serviceId:     reader.headeridx.GetFldId("service_id", -1),
+		exceptionType: reader.headeridx.GetFldId("exception_type", -2),
+		date:          reader.headeridx.GetFldId("date", -3),
 	}
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
@@ -881,16 +883,16 @@ func (feed *Feed) parseTrips(path string, prefix string, filteredRoutes map[stri
 
 	var record []string
 	flds := TripFields{
-		tripId:               reader.headeridx.GetFldId("trip_id"),
-		routeId:              reader.headeridx.GetFldId("route_id"),
-		serviceId:            reader.headeridx.GetFldId("service_id"),
-		tripHeadsign:         reader.headeridx.GetFldId("trip_headsign"),
-		tripShortName:        reader.headeridx.GetFldId("trip_short_name"),
-		directionId:          reader.headeridx.GetFldId("direction_id"),
-		blockId:              reader.headeridx.GetFldId("block_id"),
-		shapeId:              reader.headeridx.GetFldId("shape_id"),
-		wheelchairAccessible: reader.headeridx.GetFldId("wheelchair_accessible"),
-		bikesAllowed:         reader.headeridx.GetFldId("bikes_allowed"),
+		tripId:               reader.headeridx.GetFldId("trip_id", -1),
+		routeId:              reader.headeridx.GetFldId("route_id", -2),
+		serviceId:            reader.headeridx.GetFldId("service_id", -3),
+		tripHeadsign:         reader.headeridx.GetFldId("trip_headsign", -4),
+		tripShortName:        reader.headeridx.GetFldId("trip_short_name", -5),
+		directionId:          reader.headeridx.GetFldId("direction_id", -6),
+		blockId:              reader.headeridx.GetFldId("block_id", -7),
+		shapeId:              reader.headeridx.GetFldId("shape_id", -8),
+		wheelchairAccessible: reader.headeridx.GetFldId("wheelchair_accessible", -9),
+		bikesAllowed:         reader.headeridx.GetFldId("bikes_allowed", -10),
 	}
 
 	addFlds := make([]int, 0)
@@ -969,11 +971,11 @@ func (feed *Feed) reserveShapes(path string, prefix string) (err error) {
 
 	var record []string
 	flds := ShapeFields{
-		shapeId:           reader.headeridx.GetFldId("shape_id"),
-		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled"),
-		shapePtLat:        reader.headeridx.GetFldId("shape_pt_lat"),
-		shapePtLon:        reader.headeridx.GetFldId("shape_pt_lon"),
-		shapePtSequence:   reader.headeridx.GetFldId("shape_pt_sequence"),
+		shapeId:           reader.headeridx.GetFldId("shape_id", -1),
+		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled", -2),
+		shapePtLat:        reader.headeridx.GetFldId("shape_pt_lat", -3),
+		shapePtLon:        reader.headeridx.GetFldId("shape_pt_lon", -4),
+		shapePtSequence:   reader.headeridx.GetFldId("shape_pt_sequence", -5),
 	}
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
@@ -1010,11 +1012,11 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 
 	var record []string
 	flds := ShapeFields{
-		shapeId:           reader.headeridx.GetFldId("shape_id"),
-		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled"),
-		shapePtLat:        reader.headeridx.GetFldId("shape_pt_lat"),
-		shapePtLon:        reader.headeridx.GetFldId("shape_pt_lon"),
-		shapePtSequence:   reader.headeridx.GetFldId("shape_pt_sequence"),
+		shapeId:           reader.headeridx.GetFldId("shape_id", -1),
+		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled", -2),
+		shapePtLat:        reader.headeridx.GetFldId("shape_pt_lat", -3),
+		shapePtLon:        reader.headeridx.GetFldId("shape_pt_lon", -4),
+		shapePtSequence:   reader.headeridx.GetFldId("shape_pt_sequence", -5),
 	}
 
 	addFlds := make([]int, 0)
@@ -1107,18 +1109,18 @@ func (feed *Feed) reserveStopTimes(path string, prefix string, filteredTrips map
 
 	var record []string
 	flds := StopTimeFields{
-		tripId:            reader.headeridx.GetFldId("trip_id"),
-		stopId:            reader.headeridx.GetFldId("stop_id"),
-		arrivalTime:       reader.headeridx.GetFldId("arrival_time"),
-		departureTime:     reader.headeridx.GetFldId("departure_time"),
-		stopSequence:      reader.headeridx.GetFldId("stop_sequence"),
-		stopHeadsign:      reader.headeridx.GetFldId("stop_headsign"),
-		pickupType:        reader.headeridx.GetFldId("pickup_type"),
-		dropOffType:       reader.headeridx.GetFldId("drop_off_type"),
-		continuousDropOff: reader.headeridx.GetFldId("continuous_drop_off"),
-		continuousPickup:  reader.headeridx.GetFldId("continuous_pickup"),
-		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled"),
-		timepoint:         reader.headeridx.GetFldId("timepoint"),
+		tripId:            reader.headeridx.GetFldId("trip_id", -1),
+		stopId:            reader.headeridx.GetFldId("stop_id", -2),
+		arrivalTime:       reader.headeridx.GetFldId("arrival_time", -3),
+		departureTime:     reader.headeridx.GetFldId("departure_time", -4),
+		stopSequence:      reader.headeridx.GetFldId("stop_sequence", -5),
+		stopHeadsign:      reader.headeridx.GetFldId("stop_headsign", -6),
+		pickupType:        reader.headeridx.GetFldId("pickup_type", -7),
+		dropOffType:       reader.headeridx.GetFldId("drop_off_type", -8),
+		continuousDropOff: reader.headeridx.GetFldId("continuous_drop_off", -9),
+		continuousPickup:  reader.headeridx.GetFldId("continuous_pickup", -10),
+		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled", -11),
+		timepoint:         reader.headeridx.GetFldId("timepoint", -12),
 	}
 
 	file, e = feed.getFile(path, "stop_times.txt")
@@ -1152,18 +1154,18 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 
 	var record []string
 	flds := StopTimeFields{
-		tripId:            reader.headeridx.GetFldId("trip_id"),
-		stopId:            reader.headeridx.GetFldId("stop_id"),
-		arrivalTime:       reader.headeridx.GetFldId("arrival_time"),
-		departureTime:     reader.headeridx.GetFldId("departure_time"),
-		stopSequence:      reader.headeridx.GetFldId("stop_sequence"),
-		stopHeadsign:      reader.headeridx.GetFldId("stop_headsign"),
-		pickupType:        reader.headeridx.GetFldId("pickup_type"),
-		dropOffType:       reader.headeridx.GetFldId("drop_off_type"),
-		continuousDropOff: reader.headeridx.GetFldId("continuous_drop_off"),
-		continuousPickup:  reader.headeridx.GetFldId("continuous_pickup"),
-		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled"),
-		timepoint:         reader.headeridx.GetFldId("timepoint"),
+		tripId:            reader.headeridx.GetFldId("trip_id", -1),
+		stopId:            reader.headeridx.GetFldId("stop_id", -2),
+		arrivalTime:       reader.headeridx.GetFldId("arrival_time", -3),
+		departureTime:     reader.headeridx.GetFldId("departure_time", -4),
+		stopSequence:      reader.headeridx.GetFldId("stop_sequence", -5),
+		stopHeadsign:      reader.headeridx.GetFldId("stop_headsign", -6),
+		pickupType:        reader.headeridx.GetFldId("pickup_type", -7),
+		dropOffType:       reader.headeridx.GetFldId("drop_off_type", -8),
+		continuousDropOff: reader.headeridx.GetFldId("continuous_drop_off", -9),
+		continuousPickup:  reader.headeridx.GetFldId("continuous_pickup", -10),
+		shapeDistTraveled: reader.headeridx.GetFldId("shape_dist_traveled", -11),
+		timepoint:         reader.headeridx.GetFldId("timepoint", -12),
 	}
 
 	addFlds := make([]int, 0)
@@ -1260,11 +1262,11 @@ func (feed *Feed) parseFrequencies(path string, prefix string, filteredTrips map
 
 	var record []string
 	flds := FrequencyFields{
-		tripId:      reader.headeridx.GetFldId("trip_id"),
-		exactTimes:  reader.headeridx.GetFldId("exact_times"),
-		startTime:   reader.headeridx.GetFldId("start_time"),
-		endTime:     reader.headeridx.GetFldId("end_time"),
-		headwaySecs: reader.headeridx.GetFldId("headway_secs"),
+		tripId:      reader.headeridx.GetFldId("trip_id", -1),
+		exactTimes:  reader.headeridx.GetFldId("exact_times", -2),
+		startTime:   reader.headeridx.GetFldId("start_time", -3),
+		endTime:     reader.headeridx.GetFldId("end_time", -4),
+		headwaySecs: reader.headeridx.GetFldId("headway_secs", -5),
 	}
 
 	addFlds := make([]int, 0)
@@ -1328,13 +1330,13 @@ func (feed *Feed) parseFareAttributes(path string, prefix string) (err error) {
 
 	var record []string
 	flds := FareAttributeFields{
-		fareId:           reader.headeridx.GetFldId("fare_id"),
-		price:            reader.headeridx.GetFldId("price"),
-		currencyType:     reader.headeridx.GetFldId("currency_type"),
-		paymentMethod:    reader.headeridx.GetFldId("payment_method"),
-		transfers:        reader.headeridx.GetFldId("transfers"),
-		transferDuration: reader.headeridx.GetFldId("transfer_duration"),
-		agencyId:         reader.headeridx.GetFldId("agency_id"),
+		fareId:           reader.headeridx.GetFldId("fare_id", -1),
+		price:            reader.headeridx.GetFldId("price", -2),
+		currencyType:     reader.headeridx.GetFldId("currency_type", -3),
+		paymentMethod:    reader.headeridx.GetFldId("payment_method", -4),
+		transfers:        reader.headeridx.GetFldId("transfers", -5),
+		transferDuration: reader.headeridx.GetFldId("transfer_duration", -6),
+		agencyId:         reader.headeridx.GetFldId("agency_id", -7),
 	}
 
 	addFlds := make([]int, 0)
@@ -1388,11 +1390,11 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string, filteredRo
 
 	var record []string
 	flds := FareRuleFields{
-		fareId:        reader.headeridx.GetFldId("fare_id"),
-		routeId:       reader.headeridx.GetFldId("route_id"),
-		originId:      reader.headeridx.GetFldId("origin_id"),
-		destinationId: reader.headeridx.GetFldId("destination_id"),
-		containsId:    reader.headeridx.GetFldId("contains_id"),
+		fareId:        reader.headeridx.GetFldId("fare_id", -1),
+		routeId:       reader.headeridx.GetFldId("route_id", -2),
+		originId:      reader.headeridx.GetFldId("origin_id", -3),
+		destinationId: reader.headeridx.GetFldId("destination_id", -4),
+		containsId:    reader.headeridx.GetFldId("contains_id", -5),
 	}
 
 	addFlds := make([]int, 0)
@@ -1457,14 +1459,14 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 
 	var record []string
 	flds := TransferFields{
-		FromStopId:      reader.headeridx.GetFldId("from_stop_id"),
-		ToStopId:        reader.headeridx.GetFldId("to_stop_id"),
-		FromRouteId:     reader.headeridx.GetFldId("from_route_id"),
-		ToRouteId:       reader.headeridx.GetFldId("to_route_id"),
-		FromTripId:      reader.headeridx.GetFldId("from_trip_id"),
-		ToTripId:        reader.headeridx.GetFldId("to_trip_id"),
-		TransferType:    reader.headeridx.GetFldId("transfer_type"),
-		MinTransferTime: reader.headeridx.GetFldId("min_transfer_time"),
+		FromStopId:      reader.headeridx.GetFldId("from_stop_id", -1),
+		ToStopId:        reader.headeridx.GetFldId("to_stop_id", -2),
+		FromRouteId:     reader.headeridx.GetFldId("from_route_id", -3),
+		ToRouteId:       reader.headeridx.GetFldId("to_route_id", -4),
+		FromTripId:      reader.headeridx.GetFldId("from_trip_id", -5),
+		ToTripId:        reader.headeridx.GetFldId("to_trip_id", -6),
+		TransferType:    reader.headeridx.GetFldId("transfer_type", -7),
+		MinTransferTime: reader.headeridx.GetFldId("min_transfer_time", -8),
 	}
 
 	addFlds := make([]int, 0)
@@ -1534,18 +1536,18 @@ func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[stri
 
 	var record []string
 	flds := PathwayFields{
-		pathwayId:            reader.headeridx.GetFldId("pathway_id"),
-		fromStopId:           reader.headeridx.GetFldId("from_stop_id"),
-		toStopId:             reader.headeridx.GetFldId("to_stop_id"),
-		pathwayMode:          reader.headeridx.GetFldId("pathway_mode"),
-		isBidirectional:      reader.headeridx.GetFldId("is_bidirectional"),
-		length:               reader.headeridx.GetFldId("length"),
-		traversalTime:        reader.headeridx.GetFldId("traversal_time"),
-		stairCount:           reader.headeridx.GetFldId("stair_count"),
-		maxSlope:             reader.headeridx.GetFldId("max_slope"),
-		minWidth:             reader.headeridx.GetFldId("min_width"),
-		signpostedAs:         reader.headeridx.GetFldId("signposted_as"),
-		reversedSignpostedAs: reader.headeridx.GetFldId("reversed_signposted_as"),
+		pathwayId:            reader.headeridx.GetFldId("pathway_id", -1),
+		fromStopId:           reader.headeridx.GetFldId("from_stop_id", -2),
+		toStopId:             reader.headeridx.GetFldId("to_stop_id", -3),
+		pathwayMode:          reader.headeridx.GetFldId("pathway_mode", -4),
+		isBidirectional:      reader.headeridx.GetFldId("is_bidirectional", -5),
+		length:               reader.headeridx.GetFldId("length", -6),
+		traversalTime:        reader.headeridx.GetFldId("traversal_time", -7),
+		stairCount:           reader.headeridx.GetFldId("stair_count", -8),
+		maxSlope:             reader.headeridx.GetFldId("max_slope", -9),
+		minWidth:             reader.headeridx.GetFldId("min_width", -10),
+		signpostedAs:         reader.headeridx.GetFldId("signposted_as", -11),
+		reversedSignpostedAs: reader.headeridx.GetFldId("reversed_signposted_as", -12),
 	}
 
 	addFlds := make([]int, 0)
@@ -1612,13 +1614,13 @@ func (feed *Feed) parseTranslations(path string, prefix string) (err error) {
 
 	var record []string
 	flds := TranslationFields{
-		tableName:   reader.headeridx.GetFldId("table_name"),
-		fieldName:   reader.headeridx.GetFldId("field_name"),
-		language:    reader.headeridx.GetFldId("language"),
-		translation: reader.headeridx.GetFldId("translation"),
-		recordId:    reader.headeridx.GetFldId("record_id"),
-		recordSubId: reader.headeridx.GetFldId("record_sub_id"),
-		fieldValue:  reader.headeridx.GetFldId("field_value"),
+		tableName:   reader.headeridx.GetFldId("table_name", -1),
+		fieldName:   reader.headeridx.GetFldId("field_name", -2),
+		language:    reader.headeridx.GetFldId("language", -3),
+		translation: reader.headeridx.GetFldId("translation", -4),
+		recordId:    reader.headeridx.GetFldId("record_id", -5),
+		recordSubId: reader.headeridx.GetFldId("record_sub_id", -6),
+		fieldValue:  reader.headeridx.GetFldId("field_value", -7),
 	}
 
 	addFlds := make([]int, 0)
@@ -1675,17 +1677,17 @@ func (feed *Feed) parseAttributions(path string, prefix string, filteredRoutes m
 
 	var record []string
 	flds := AttributionFields{
-		attributionId:    reader.headeridx.GetFldId("attribution_id"),
-		organizationName: reader.headeridx.GetFldId("organization_name"),
-		isProducer:       reader.headeridx.GetFldId("is_producer"),
-		isOperator:       reader.headeridx.GetFldId("is_operator"),
-		isAuthority:      reader.headeridx.GetFldId("is_authority"),
-		attributionUrl:   reader.headeridx.GetFldId("attribution_url"),
-		attributionEmail: reader.headeridx.GetFldId("attribution_email"),
-		attributionPhone: reader.headeridx.GetFldId("attribution_phone"),
-		routeId:          reader.headeridx.GetFldId("route_id"),
-		agencyId:         reader.headeridx.GetFldId("agency_id"),
-		tripId:           reader.headeridx.GetFldId("trip_id"),
+		attributionId:    reader.headeridx.GetFldId("attribution_id", -1),
+		organizationName: reader.headeridx.GetFldId("organization_name", -2),
+		isProducer:       reader.headeridx.GetFldId("is_producer", -3),
+		isOperator:       reader.headeridx.GetFldId("is_operator", -4),
+		isAuthority:      reader.headeridx.GetFldId("is_authority", -5),
+		attributionUrl:   reader.headeridx.GetFldId("attribution_url", -6),
+		attributionEmail: reader.headeridx.GetFldId("attribution_email", -7),
+		attributionPhone: reader.headeridx.GetFldId("attribution_phone", -8),
+		routeId:          reader.headeridx.GetFldId("route_id", -9),
+		agencyId:         reader.headeridx.GetFldId("agency_id", -10),
+		tripId:           reader.headeridx.GetFldId("trip_id", -11),
 	}
 
 	addFlds := make([]int, 0)
@@ -1779,9 +1781,9 @@ func (feed *Feed) parseLevels(path string, idprefix string) (err error) {
 
 	var record []string
 	flds := LevelFields{
-		levelId:    reader.headeridx.GetFldId("level_id"),
-		levelIndex: reader.headeridx.GetFldId("level_index"),
-		levelName:  reader.headeridx.GetFldId("level_name"),
+		levelId:    reader.headeridx.GetFldId("level_id", -1),
+		levelIndex: reader.headeridx.GetFldId("level_index", -2),
+		levelName:  reader.headeridx.GetFldId("level_name", -3),
 	}
 
 	addFlds := make([]int, 0)
@@ -1840,14 +1842,14 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 
 	var record []string
 	flds := FeedInfoFields{
-		feedPublisherName: reader.headeridx.GetFldId("feed_publisher_name"),
-		feedPublisherUrl:  reader.headeridx.GetFldId("feed_publisher_url"),
-		feedLang:          reader.headeridx.GetFldId("feed_lang"),
-		feedStartDate:     reader.headeridx.GetFldId("feed_start_date"),
-		feedEndDate:       reader.headeridx.GetFldId("feed_end_date"),
-		feedVersion:       reader.headeridx.GetFldId("feed_version"),
-		feedContactEmail:  reader.headeridx.GetFldId("feed_contact_email"),
-		feedContactUrl:    reader.headeridx.GetFldId("feed_contact_url"),
+		feedPublisherName: reader.headeridx.GetFldId("feed_publisher_name", -1),
+		feedPublisherUrl:  reader.headeridx.GetFldId("feed_publisher_url", -2),
+		feedLang:          reader.headeridx.GetFldId("feed_lang", -3),
+		feedStartDate:     reader.headeridx.GetFldId("feed_start_date", -4),
+		feedEndDate:       reader.headeridx.GetFldId("feed_end_date", -5),
+		feedVersion:       reader.headeridx.GetFldId("feed_version", -6),
+		feedContactEmail:  reader.headeridx.GetFldId("feed_contact_email", -7),
+		feedContactUrl:    reader.headeridx.GetFldId("feed_contact_url", -8),
 	}
 
 	addFlds := make([]int, 0)

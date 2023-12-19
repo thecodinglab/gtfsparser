@@ -15,11 +15,11 @@ import (
 
 type HeaderIdx map[string]int
 
-func (d HeaderIdx) GetFldId(key string) (result int) {
+func (d HeaderIdx) GetFldId(key string, def int) (result int) {
 	if v, ok := d[key]; ok {
 		return v
 	} else {
-		return -1
+		return def
 	}
 }
 
