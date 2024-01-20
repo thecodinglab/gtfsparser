@@ -68,12 +68,6 @@ func GetTypeFromExtended(t int16) int16 {
 		fallthrough
 	case 300:
 		fallthrough
-	case 400:
-		fallthrough
-	case 403:
-		fallthrough
-	case 404:
-		fallthrough
 	case 1503:
 		return 2 // rail
 	case 3:
@@ -146,9 +140,15 @@ func GetTypeFromExtended(t int16) int16 {
 		return 3 // bus
 	case 1:
 		fallthrough
+	case 400:
+		fallthrough
 	case 401:
 		fallthrough
 	case 402:
+		fallthrough
+	case 403:
+		fallthrough
+	case 404:
 		fallthrough
 	case 500:
 		fallthrough
