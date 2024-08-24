@@ -8,7 +8,7 @@ package gtfs
 
 // A Pathway represents a graph of the station layout
 type Level struct {
-	Id           string
+	ID           string
 	Index        float32
 	Name         string
 	Translations []*Translation

@@ -9,18 +9,18 @@ package gtfs
 // A Trip is a single vehicle trip traveling through
 // the network with specific times
 type Trip struct {
-	Route                 *Route
-	Service               *Service
-	Headsign              *string
-	Shape                 *Shape
-	Id                    string
-	Short_name            *string
-	Block_id              *string
-	StopTimes             StopTimes
-	Frequencies           *[]*Frequency
-	Attributions          *[]*Attribution
-	Translations          *[]*Translation
-	Direction_id          int8
-	Wheelchair_accessible int8
-	Bikes_allowed         int8
+	Route                *Route
+	Service              *Service
+	Headsign             *string
+	Shape                *Shape
+	ID                   string
+	ShortName            *string
+	BlockID              *string
+	StopTimes            StopTimes
+	Frequencies          *[]*Frequency
+	Attributions         *[]*Attribution
+	Translations         *[]*Translation
+	DirectionID          int8
+	WheelchairAccessible int8
+	BikesAllowed         int8
 }

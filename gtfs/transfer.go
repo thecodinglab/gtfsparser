@@ -10,15 +10,15 @@ package gtfs
 // certain stops
 
 type TransferKey struct {
-	From_stop  *Stop
-	To_stop    *Stop
-	From_route *Route
-	To_route   *Route
-	From_trip  *Trip
-	To_trip    *Trip
+	FromStop  *Stop
+	ToStop    *Stop
+	FromRoute *Route
+	ToRoute   *Route
+	FromTrip  *Trip
+	ToTrip    *Trip
 }
 
 type TransferVal struct {
-	Transfer_type     int
-	Min_transfer_time int
+	TransferType    int
+	MinTransferTime int
 }

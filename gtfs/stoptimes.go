@@ -13,13 +13,13 @@ import (
 
 // A StopTime is a single stop with times on a trip
 type StopTime struct {
-	arrival_time        Time
-	departure_time      Time
-	pudo                uint8
-	stop                *Stop
-	headsign            *string
-	sequence            int32
-	shape_dist_traveled float32
+	ArrivalTime       Time
+	DepartureTime     Time
+	PickupDropOff     uint8
+	Stop              *Stop
+	Headsign          *string
+	Seq               int32
+	ShapeDistTraveled float32
 }
 
 // StopTimes group multiple StopTime objects
@@ -32,109 +32,69 @@ type Time struct {
 	Second int8
 }
 
-func (st *StopTime) Arrival_time() Time {
-	return st.arrival_time
-}
-
-func (st *StopTime) SetArrival_time(t Time) {
-	st.arrival_time = t
-}
-
-func (st *StopTime) Departure_time() Time {
-	return st.departure_time
-}
-
-func (st *StopTime) SetDeparture_time(t Time) {
-	st.departure_time = t
-}
-
-func (st *StopTime) Stop() *Stop {
-	return st.stop
-}
-
-func (st *StopTime) SetStop(s *Stop) {
-	st.stop = s
-}
-
 func (st *StopTime) Sequence() int {
-	if st.sequence == 0 {
+	if st.Seq == 0 {
 		return 1
 	}
-	if st.sequence < 0 {
-		return int(-(st.sequence + 1))
+	if st.Seq < 0 {
+		return int(-(st.Seq + 1))
 	} else {
-		return int(st.sequence - 1)
+		return int(st.Seq - 1)
 	}
 }
 
 func (st *StopTime) SetSequence(seq int) {
-	if st.sequence < 0 {
-		st.sequence = int32(-seq - 1)
+	if st.Seq < 0 {
+		st.Seq = int32(-seq - 1)
 	} else {
-		st.sequence = int32(seq + 1)
+		st.Seq = int32(seq + 1)
 	}
 }
 
-func (st *StopTime) Headsign() *string {
-	return st.headsign
+func (st *StopTime) Pickup() uint8 {
+	return (st.PickupDropOff & uint8(3))
 }
 
-func (st *StopTime) SetHeadsign(hs *string) {
-	st.headsign = hs
+func (st *StopTime) SetPickup(put uint8) {
+	st.PickupDropOff |= put
 }
 
-func (st *StopTime) Pickup_type() uint8 {
-	return (st.pudo & uint8(3))
+func (st *StopTime) DropOff() uint8 {
+	return ((st.PickupDropOff & (uint8(3) << 2)) >> 2)
 }
 
-func (st *StopTime) SetPickup_type(put uint8) {
-	st.pudo |= put
+func (st *StopTime) SetDropOff(dot uint8) {
+	st.PickupDropOff |= (dot << 2)
 }
 
-func (st *StopTime) Drop_off_type() uint8 {
-	return ((st.pudo & (uint8(3) << 2)) >> 2)
+func (st *StopTime) ContinuousPickup() uint8 {
+	return ((st.PickupDropOff & (uint8(3) << 4)) >> 4)
 }
 
-func (st *StopTime) SetDrop_off_type(dot uint8) {
-	st.pudo |= (dot << 2)
+func (st *StopTime) SetContinuousPickup(cp uint8) {
+	st.PickupDropOff |= (cp << 4)
 }
 
-func (st *StopTime) Continuous_pickup() uint8 {
-	return ((st.pudo & (uint8(3) << 4)) >> 4)
+func (st *StopTime) ContinuousDropOff() uint8 {
+	return ((st.PickupDropOff & (uint8(3) << 6)) >> 6)
 }
 
-func (st *StopTime) SetContinuous_pickup(cp uint8) {
-	st.pudo |= (cp << 4)
-}
-
-func (st *StopTime) Continuous_drop_off() uint8 {
-	return ((st.pudo & (uint8(3) << 6)) >> 6)
-}
-
-func (st *StopTime) SetContinuous_drop_off(cdo uint8) {
-	st.pudo |= cdo << 6
-}
-
-func (st *StopTime) Shape_dist_traveled() float32 {
-	return st.shape_dist_traveled
-}
-
-func (st *StopTime) SetShape_dist_traveled(d float32) {
-	st.shape_dist_traveled = d
+func (st *StopTime) SetContinuousDropOff(cdo uint8) {
+	st.PickupDropOff |= cdo << 6
 }
 
 func (st *StopTime) Timepoint() bool {
-	return !(st.sequence < 0)
+	return !(st.Seq < 0)
 }
 
 func (st *StopTime) SetTimepoint(tp bool) {
-	if st.sequence == 0 {
-		st.sequence = 1
+	if st.Seq == 0 {
+		st.Seq = 1
 	}
-	if tp && st.sequence < 0 {
-		st.sequence = -st.sequence
-	} else if !tp && !(st.sequence < 0) {
-		st.sequence = -st.sequence
+	if tp && st.Seq < 0 {
+		st.Seq = -st.Seq
+	} else if !tp && !(st.Seq < 0) {
+		st.Seq = -st.Seq
 	}
 }
 
@@ -183,5 +143,5 @@ func (a Time) GetLocationTime(d Date, agency *Agency) time.Time {
 
 // HasDistanceTraveled returns true if this ShapePoint has a measurement
 func (s StopTime) HasDistanceTraveled() bool {
-	return !math.IsNaN(float64(s.Shape_dist_traveled()))
+	return !math.IsNaN(float64(s.ShapeDistTraveled))
 }

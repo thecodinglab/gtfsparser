@@ -6,10 +6,7 @@
 
 package gtfsparser
 
-import (
-	// "github.com/patrickbr/gtfsparser/gtfs"
-	"testing"
-)
+import "testing"
 
 func TestFeedParsing(t *testing.T) {
 	feedCorA := NewFeed()
@@ -52,8 +49,8 @@ func TestFeedParsing(t *testing.T) {
 	shp, _ := feedFailA.Shapes["C_shp"]
 
 	for i, p := range shp.Points {
-		if i > 0 && p.HasDistanceTraveled() && shp.Points[i-1].HasDistanceTraveled() && p.Dist_traveled <= shp.Points[i-1].Dist_traveled {
-			t.Error(p.Dist_traveled, shp.Points[i-1].Dist_traveled)
+		if i > 0 && p.HasDistanceTraveled() && shp.Points[i-1].HasDistanceTraveled() && p.DistTraveled <= shp.Points[i-1].DistTraveled {
+			t.Error(p.DistTraveled, shp.Points[i-1].DistTraveled)
 			return
 		}
 	}
@@ -88,7 +85,7 @@ func TestFeedParsing(t *testing.T) {
 	}
 
 	a := feedCorAddFlds.Agencies["DTA"]
-	if feedCorAddFlds.AgenciesAddFlds["testfield"][a.Id] != "testvalue" {
+	if feedCorAddFlds.AgenciesAddFlds["testfield"][a.ID] != "testvalue" {
 		t.Error("Wrong value for <testfield>")
 	}
 

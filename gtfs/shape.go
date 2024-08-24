@@ -13,16 +13,16 @@ import (
 
 // A Shape describes the geographical path of one or multiple trips
 type Shape struct {
-	Id     string
+	ID     string
 	Points ShapePoints
 }
 
 // A ShapePoint is a single point in a Shape
 type ShapePoint struct {
-	Lat           float32
-	Lon           float32
-	Sequence      uint32
-	Dist_traveled float32
+	Lat          float32
+	Lon          float32
+	Sequence     uint32
+	DistTraveled float32
 }
 
 // Get a string representation of a ShapePoint
@@ -62,5 +62,5 @@ func (shapePoints ShapePoints) Swap(i, j int) {
 
 // HasDistanceTraveled returns true if this ShapePoint has a measurement
 func (p *ShapePoint) HasDistanceTraveled() bool {
-	return !math.IsNaN(float64(p.Dist_traveled))
+	return !math.IsNaN(float64(p.DistTraveled))
 }

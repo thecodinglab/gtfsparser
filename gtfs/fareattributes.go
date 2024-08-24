@@ -9,21 +9,21 @@ package gtfs
 // A FareAttribute is a single fare attribute that applies if
 // certain FareAttributeRules are matched
 type FareAttribute struct {
-	Id                string
-	Price             string
-	Currency_type     string
-	Payment_method    int
-	Transfers         int
-	Agency            *Agency
-	Transfer_duration int
-	Rules             []*FareAttributeRule
+	ID               string
+	Price            string
+	CurrencyType     string
+	PaymentMethod    int
+	Transfers        int
+	Agency           *Agency
+	TransferDuration int
+	Rules            []*FareAttributeRule
 }
 
 // A FareAttributeRule holds rules which describe when a
 // FareAttribute applies
 type FareAttributeRule struct {
-	Route          *Route
-	Origin_id      string // connection to Zone_id in Stop
-	Destination_id string // connection to Zone_id in Stop
-	Contains_id    string // connection to Zone_id in Stop
+	Route         *Route
+	OriginID      string // connection to ZoneID in Stop
+	DestinationID string // connection to ZoneID in Stop
+	ContainsID    string // connection to ZoneID in Stop
 }

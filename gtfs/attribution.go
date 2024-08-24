@@ -13,12 +13,12 @@ import (
 
 // An Attribution represents attribution parameters
 type Attribution struct {
-	Id                string
-	Organization_name string
-	Is_producer       bool
-	Is_operator       bool
-	Is_authority      bool
-	Email             *mail.Address
-	Url               *url.URL
-	Phone             string
+	ID               string
+	OrganizationName string
+	IsProducer       bool
+	IsOperator       bool
+	IsAuthority      bool
+	Email            *mail.Address
+	URL              *url.URL
+	Phone            string
 }

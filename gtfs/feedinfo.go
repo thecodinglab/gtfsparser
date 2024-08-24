@@ -13,12 +13,12 @@ import (
 
 // FeedInfo holds general information about a GTFS feed
 type FeedInfo struct {
-	Publisher_name string
-	Publisher_url  *url.URL
-	Lang           string
-	Start_date     Date
-	End_date       Date
-	Version        string
-	Contact_email  *mail.Address
-	Contact_url    *url.URL
+	PublisherName string
+	PublisherURL  *url.URL
+	Lang          string
+	StartDate     Date
+	EndDate       Date
+	Version       string
+	ContactEmail  *mail.Address
+	ContactURL    *url.URL
 }

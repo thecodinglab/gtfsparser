@@ -13,19 +13,19 @@ import (
 // A Route describes a group of trips that are presented to passangers as
 // a single service
 type Route struct {
-	Id                  string
-	Agency              *Agency
-	Short_name          string
-	Long_name           string
-	Desc                string
-	Type                int16
-	Url                 *url.URL
-	Color               string
-	Text_color          string
-	Sort_order          int
-	Continuous_pickup   int8
-	Continuous_drop_off int8
-	Attributions        []*Attribution
+	ID                string
+	Agency            *Agency
+	ShortName         string
+	LongName          string
+	Desc              string
+	Type              int16
+	URL               *url.URL
+	Color             string
+	TextColor         string
+	SortOrder         int
+	ContinuousPickup  int8
+	ContinuousDropOff int8
+	Attributions      []*Attribution
 }
 
 func GetTypeFromExtended(t int16) int16 {
